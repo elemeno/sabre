@@ -22,6 +22,7 @@ from saber.config_loader import (
     validate_configs,
 )
 from saber.adapters import DummyAdapter
+from saber.detectors import run_detection
 
 app = typer.Typer(help="CLI for Saber configuration management and match simulation.")
 console = Console()
@@ -215,6 +216,9 @@ def _simulate_match(
     turns = 1
     success = False
     reason = "turn_limit_reached"
+    turns_to_success: int | None = None
+    detection_confidence = 0.0
+    detection_details: dict[str, object] | None = None
 
     while turns < max_turns:
         defender_message = DummyAdapter.defender_response(
@@ -225,9 +229,28 @@ def _simulate_match(
         transcript.append({"role": "defender", "content": defender_message})
         turns += 1
 
-        if secret in defender_message:
+        try:
+            detected, confidence, details = run_detection(
+                exploit_cfg.detection.method,
+                dict(exploit_cfg.detection.params),
+                defender_message,
+                secret,
+            )
+        except NotImplementedError as exc:
+            console.print(f"[red]Detection failed:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+        transcript[-1]["detection"] = {
+            "method": exploit_cfg.detection.method,
+            "confidence": confidence,
+            "details": details,
+        }
+        detection_confidence = confidence
+        detection_details = details
+
+        if detected:
             success = True
             reason = "secret_revealed"
+            turns_to_success = len(transcript)
             break
 
         if turns >= max_turns:
@@ -267,11 +290,14 @@ def _simulate_match(
         "result": {
             "success": success,
             "reason": reason,
+            "confidence": detection_confidence,
+            "details": detection_details or {},
         },
         "transcript": transcript,
         "runtime": {
             "turns": len(transcript),
             "elapsed_seconds": round(elapsed, 4),
+            "turns_to_success": turns_to_success,
         },
     }
 

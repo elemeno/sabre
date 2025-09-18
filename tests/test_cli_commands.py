@@ -58,5 +58,6 @@ def test_cli_run_match_emits_result_file(tmp_path: Path) -> None:
     data = json.loads(files[0].read_text(encoding="utf-8"))
     assert data["meta"]["attacker"] == "llama2-7b"
     assert isinstance(data["transcript"], list) and data["transcript"]
-    assert "success" in data["result"]
+    assert data["result"]["success"] is True
     assert data["runtime"]["turns"] == len(data["transcript"])
+    assert data["result"]["confidence"] > 0.0

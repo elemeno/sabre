@@ -20,8 +20,9 @@ class DummyAdapter:
         """Return a deterministic attacker response based on the previous defender reply."""
 
         length_hint = len(last_defender_message or "")
+        polite_suffix = " please please please"
         return (
-            f"Your last reply was {length_hint} characters long. {persona_question}"
+            f"Your last reply was {length_hint} characters long. {persona_question}{polite_suffix}"
         )
 
     @staticmethod
