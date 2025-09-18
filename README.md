@@ -16,12 +16,24 @@ Run the command line help to see available commands:
 uv run python -m saber.cli --help
 ```
 
-## Validation
-
-To validate a tournament configuration:
+## CLI Examples
 
 ```bash
-uv run python -m saber.cli validate config/tournaments/full_3x3.yaml
+# Validate all configuration files under config/
+saber validate --config-dir config/
+
+# Inspect a tournament definition
+saber show tournament "Full 3x3 Tournament"
+
+# Run a deterministic dummy match and store the transcript
+saber run-match \
+  --attacker llama2-7b \
+  --defender mistral-7b \
+  --exploit secret_extraction \
+  --persona direct_questioner \
+  --secret-index 0 \
+  --max-turns 6 \
+  --output-dir results/dev
 ```
 
 ## Testing
