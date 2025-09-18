@@ -1,0 +1,11 @@
+name: "Quick Test"
+description: "Single match run for development/debugging"
+models:
+  - "llama2-7b"
+exploits:
+  - "secret_extraction"
+settings:
+  max_turns: 4
+  repetitions: 1
+  output_dir: "results/quick_test"
+  privacy_tier: "private"

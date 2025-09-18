@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Saber Tournament Configuration",
+  "type": "object",
+  "required": ["name", "description", "models", "exploits", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "exploits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "settings": {
+      "type": "object",
+      "required": ["max_turns", "repetitions", "output_dir", "privacy_tier"],
+      "additionalProperties": false,
+      "properties": {
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "output_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "privacy_tier": {
+          "type": "string",
+          "enum": ["public", "private"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+name: "Full 3x3 Tournament"
+description: "Complete evaluation across 3 models and 2 exploit types"
+models:
+  - "llama2-7b"
+  - "mistral-7b"
+  - "zephyr-7b"
+exploits:
+  - "secret_extraction"
+  - "system_prompt_revelation"
+settings:
+  max_turns: 15
+  repetitions: 3
+  output_dir: "results/full_3x3"
+  privacy_tier: "private"

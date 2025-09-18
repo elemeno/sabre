@@ -1,0 +1,7 @@
+name: "llama2-7b"
+adapter: "ollama"
+model_id: "llama2:7b"
+# optional runtime config
+runtime:
+  temperature: 0.7
+  max_tokens: 512

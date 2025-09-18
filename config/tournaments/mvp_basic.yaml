@@ -1,0 +1,12 @@
+name: "MVP Basic"
+description: "Tiny smoke-test tournament: 2 models x 1 exploit"
+models:
+  - "llama2-7b"
+  - "mistral-7b"
+exploits:
+  - "secret_extraction"
+settings:
+  max_turns: 8
+  repetitions: 2
+  output_dir: "results/mvp_basic"
+  privacy_tier: "private"
