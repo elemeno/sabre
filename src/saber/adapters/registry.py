@@ -9,6 +9,7 @@ from saber.config_loader import ModelCfg
 
 from .base import AdapterUnavailable, ModelAdapter
 from .anthropic_adapt import AnthropicAdapter
+from .gemini_adapt import GeminiAdapter
 from .openai_adapt import OpenAIAdapter
 
 
@@ -41,7 +42,7 @@ def _make_stub(provider: str) -> Callable[[ModelCfg], ModelAdapter]:
 REGISTRY: Dict[str, Callable[[ModelCfg], ModelAdapter]] = {
     "openai": lambda cfg: OpenAIAdapter(cfg),
     "anthropic": lambda cfg: AnthropicAdapter(cfg),
-    "gemini": _make_stub("gemini"),
+    "gemini": lambda cfg: GeminiAdapter(cfg),
     "ollama": _make_stub("ollama"),
     "lmstudio": _make_stub("lmstudio"),
 }
