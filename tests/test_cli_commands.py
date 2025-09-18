@@ -3,12 +3,30 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from saber.cli import app
+
+try:  # optional dependency for local adapters
+    import requests
+except ImportError:  # pragma: no cover
+    requests = None  # type: ignore
+
+
+def _ollama_available() -> bool:
+    if requests is None:
+        return False
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    try:
+        response = requests.get(f"{base_url.rstrip('/')}/api/version", timeout=1)
+    except requests.RequestException:
+        return False
+    return response.ok
 
 
 def _copy_config_tree(tmp_path: Path) -> Path:
@@ -26,6 +44,8 @@ def test_cli_validate_happy_path(tmp_path: Path) -> None:
 
 
 def test_cli_run_match_emits_result_file(tmp_path: Path) -> None:
+    if not _ollama_available():
+        pytest.skip("Ollama not reachable")
     config_dir = _copy_config_tree(tmp_path)
     output_dir = tmp_path / "results"
     runner = CliRunner()
@@ -64,6 +84,8 @@ def test_cli_run_match_emits_result_file(tmp_path: Path) -> None:
 
 
 def test_cli_run_tournament_generates_summary(tmp_path: Path) -> None:
+    if not _ollama_available():
+        pytest.skip("Ollama not reachable")
     config_dir = _copy_config_tree(tmp_path)
     output_dir = tmp_path / "tournament"
     runner = CliRunner()

@@ -191,6 +191,8 @@ def run_match(
         output_dir=output_dir,
         attacker_adapter=attacker_adapter,
         defender_adapter=defender_adapter,
+        attacker_adapter_id=chosen_adapter,
+        defender_adapter_id=chosen_adapter,
     )
 
     status = "SUCCESS" if result["result"]["success"] else "FAILURE"
@@ -256,17 +258,17 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _select_adapter(model_cfg: ModelCfg) -> ModelAdapter:
+    def _select_adapter(model_cfg: ModelCfg) -> tuple[ModelAdapter, str]:
         provider = adapter_id or model_cfg.adapter
         if not provider:
             raise AdapterUnavailable(
                 f"Model '{model_cfg.name}' does not define an adapter. Use --adapter to specify one."
             )
-        return create_adapter(provider, model_cfg)
+        return create_adapter(provider, model_cfg), provider
 
     def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
-        attacker_adapter = _select_adapter(spec.attacker)
-        defender_adapter = _select_adapter(spec.defender)
+        attacker_adapter, attacker_provider = _select_adapter(spec.attacker)
+        defender_adapter, defender_provider = _select_adapter(spec.defender)
         return _simulate_match(
             attacker_cfg=spec.attacker,
             defender_cfg=spec.defender,
@@ -280,6 +282,8 @@ def run_tournament(
             match_id=spec.match_id,
             attacker_adapter=attacker_adapter,
             defender_adapter=defender_adapter,
+            attacker_adapter_id=attacker_provider,
+            defender_adapter_id=defender_provider,
         )
 
     controller = TournamentController(
@@ -351,6 +355,8 @@ def _simulate_match(
     match_id: str | None = None,
     attacker_adapter: ModelAdapter | None = None,
     defender_adapter: ModelAdapter | None = None,
+    attacker_adapter_id: str | None = None,
+    defender_adapter_id: str | None = None,
 ) -> dict[str, Any]:
     start_time = time.monotonic()
     transcript: list[dict[str, str]] = []
@@ -367,14 +373,28 @@ def _simulate_match(
     detection_confidence = 0.0
     detection_details: dict[str, object] | None = None
 
+    history: list[dict[str, str]] = [{"role": "user", "content": attacker_message}]
+
     while turns < max_turns:
-        defender_message = DummyAdapter.defender_response(
-            defender_prompt=defender_prompt,
-            attacker_message=attacker_message,
-            secret=secret,
-        )
+        if defender_adapter is not None:
+            def _call_defender() -> str:
+                return _defender_adapter.send(
+                    system=defender_prompt,
+                    persona_system=None,
+                    history=history,
+                    runtime=None,
+                )
+
+            defender_message = retry_send(_call_defender, console=console)
+        else:
+            defender_message = DummyAdapter.defender_response(
+                defender_prompt=defender_prompt,
+                attacker_message=attacker_message,
+                secret=secret,
+            )
         transcript.append({"role": "defender", "content": defender_message})
         turns += 1
+        history.append({"role": "assistant", "content": defender_message})
 
         try:
             detected, confidence, details = run_detection(
@@ -410,6 +430,7 @@ def _simulate_match(
         )
         transcript.append({"role": "attacker", "content": attacker_message})
         turns += 1
+        history.append({"role": "user", "content": attacker_message})
 
     elapsed = time.monotonic() - start_time
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -432,8 +453,16 @@ def _simulate_match(
             "secret_index": secret_index,
             "max_turns": max_turns,
             "defender_prompt": defender_prompt,
-            "attacker_adapter": _attacker_adapter.name,
-            "defender_adapter": _defender_adapter.name,
+            "attacker_adapter": {
+                "name": _attacker_adapter.name,
+                "provider": attacker_adapter_id or attacker_cfg.adapter,
+                "model_id": attacker_cfg.model_id,
+            },
+            "defender_adapter": {
+                "name": _defender_adapter.name,
+                "provider": defender_adapter_id or defender_cfg.adapter,
+                "model_id": defender_cfg.model_id,
+            },
             "match_id": resolved_match_id,
             "output_path": str(output_path),
         },
