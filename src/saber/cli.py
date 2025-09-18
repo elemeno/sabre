@@ -216,6 +216,7 @@ def run_tournament(
     ),
     seed: int = typer.Option(42, "--seed", help="Seed used for persona and secret rotation."),
     max_workers: int = typer.Option(1, "--max-workers", min=1, help="Number of workers (future use)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the planned schedule without running matches."),
 ) -> None:
     """Run an entire tournament schedule."""
 
@@ -233,6 +234,28 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
+    controller = TournamentController(
+        config=tournament_cfg,
+        models=models,
+        personas=personas,
+        exploits=exploits,
+        run_match_fn=lambda spec, destination: {},  # placeholder, replaced below
+        seed=seed,
+    )
+
+    schedule = controller.build_schedule()
+
+    if dry_run:
+        console.print(f"Planned matches: {len(schedule)}")
+        preview = schedule[:3]
+        for spec in preview:
+            console.print(
+                f"  {spec.match_id}: {spec.attacker.name} -> {spec.defender.name} | {spec.exploit.name} | persona={spec.persona.name} | secret_index={spec.secret_index}"
+            )
+        if len(schedule) > 3:
+            console.print(f"  ... ({len(schedule) - 3} more matches)")
+        return
+
     def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
         return _simulate_match(
             attacker_cfg=spec.attacker,
@@ -247,14 +270,7 @@ def run_tournament(
             match_id=spec.match_id,
         )
 
-    controller = TournamentController(
-        config=tournament_cfg,
-        models=models,
-        personas=personas,
-        exploits=exploits,
-        run_match_fn=_match_runner,
-        seed=seed,
-    )
+    controller.run_match_fn = _match_runner
 
     try:
         result = controller.run(output_dir=effective_output_dir, max_workers=max_workers)

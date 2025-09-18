@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
 from saber.config_loader import ExploitCfg, ModelCfg, PersonaCfg, TournamentCfg
+from saber.utils import redact_possible_secrets
 
 MatchResultData = Dict[str, object]
 RunMatchFn = Callable[["MatchSpec", Path], MatchResultData]
@@ -64,6 +65,7 @@ class TournamentController:
         self.exploits = exploits
         self.run_match_fn = run_match_fn
         self.seed = seed
+        self.privacy_tier = getattr(config.settings, "privacy_tier", "private")
 
     # ---------------------------------------------------------------------
     # Schedule generation
@@ -129,8 +131,17 @@ class TournamentController:
     # ------------------------------------------------------------------
     # Execution
     # ------------------------------------------------------------------
-    def run(self, *, output_dir: Path, max_workers: int = 1) -> TournamentRunResult:
+    def run(
+        self,
+        *,
+        output_dir: Path,
+        max_workers: int = 1,
+        dry_run: bool = False,
+    ) -> TournamentRunResult:
         """Execute the schedule and persist summary artefacts."""
+
+        if dry_run:
+            raise ValueError("Use build_schedule() directly for dry runs.")
 
         if max_workers != 1:
             raise NotImplementedError("Multi-worker execution is not implemented yet.")
@@ -320,8 +331,11 @@ class TournamentController:
 
     def _write_summary(self, path: Path, payload: Dict[str, object]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+        data = json.dumps(payload, indent=2)
+        if self.privacy_tier == "public":
+            data = redact_possible_secrets(data)
         with path.open("w", encoding="utf-8") as fh:
-            json.dump(payload, fh, indent=2)
+            fh.write(data)
 
     def _write_csv(self, path: Path, results: List[Tuple[MatchSpec, MatchResultData]]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -359,6 +373,8 @@ class TournamentController:
                     "turns_to_success": runtime.get("turns_to_success"),
                     "output_path": data.get("meta", {}).get("output_path"),
                 }
+                if self.privacy_tier == "public":
+                    row = {key: redact_possible_secrets(str(value)) for key, value in row.items()}
                 writer.writerow(row)
 
 

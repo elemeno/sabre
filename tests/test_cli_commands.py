@@ -95,3 +95,23 @@ def test_cli_run_tournament_generates_summary(tmp_path: Path) -> None:
     assert summary["total_matches"] == len(match_files)
     assert summary["per_combo"]
     assert "pair_matrix" in summary
+
+
+def test_cli_run_tournament_dry_run(tmp_path: Path) -> None:
+    config_dir = _copy_config_tree(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--tournament",
+            "MVP Basic",
+            "--config-dir",
+            str(config_dir),
+            "--dry-run",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    assert "Planned matches" in result.stdout
+    assert result.stdout.count("match_") >= 3
