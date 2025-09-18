@@ -61,3 +61,37 @@ def test_cli_run_match_emits_result_file(tmp_path: Path) -> None:
     assert data["result"]["success"] is True
     assert data["runtime"]["turns"] == len(data["transcript"])
     assert data["result"]["confidence"] > 0.0
+
+
+def test_cli_run_tournament_generates_summary(tmp_path: Path) -> None:
+    config_dir = _copy_config_tree(tmp_path)
+    output_dir = tmp_path / "tournament"
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--tournament",
+            "MVP Basic",
+            "--config-dir",
+            str(config_dir),
+            "--output-dir",
+            str(output_dir),
+            "--seed",
+            "7",
+            "--max-workers",
+            "1",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    summary_path = output_dir / "tournament-summary.json"
+    assert summary_path.exists()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    matches_dir = output_dir / "matches"
+    assert matches_dir.exists()
+    match_files = list(matches_dir.glob("*.json"))
+    assert match_files
+    assert summary["total_matches"] == len(match_files)
+    assert summary["per_combo"]
+    assert "pair_matrix" in summary

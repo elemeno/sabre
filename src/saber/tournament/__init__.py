@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .controller import TournamentController
+from .controller import MatchSpec, TournamentController, TournamentRunResult
 
-__all__ = ["TournamentController"]
+__all__ = ["MatchSpec", "TournamentController", "TournamentRunResult"]

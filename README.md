@@ -34,6 +34,13 @@ saber run-match \
   --secret-index 0 \
   --max-turns 6 \
   --output-dir results/dev
+
+# Execute a full tournament schedule and compute summaries
+saber run \
+  --tournament "Full 3x3 Tournament" \
+  --config-dir config/ \
+  --output-dir results/full_3x3 \
+  --seed 123
 ```
 
 ## Testing

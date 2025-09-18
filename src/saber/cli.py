@@ -23,6 +23,7 @@ from saber.config_loader import (
 )
 from saber.adapters import DummyAdapter
 from saber.detectors import run_detection
+from saber.tournament import MatchSpec, TournamentController
 
 app = typer.Typer(help="CLI for Saber configuration management and match simulation.")
 console = Console()
@@ -193,6 +194,101 @@ def _require_entity(name: str, store: dict[str, Any], kind: str, config_dir: Pat
     return entity
 
 
+@app.command("run")
+def run_tournament(
+    tournament: str = typer.Option(..., "--tournament", help="Tournament name or path."),
+    config_dir: Path = typer.Option(
+        default=_config_dir_option(),
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        help="Directory containing Saber configuration YAML files.",
+    ),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        readable=False,
+        writable=True,
+        help="Destination for tournament artefacts (defaults to the tournament setting).",
+    ),
+    seed: int = typer.Option(42, "--seed", help="Seed used for persona and secret rotation."),
+    max_workers: int = typer.Option(1, "--max-workers", min=1, help="Number of workers (future use)."),
+) -> None:
+    """Run an entire tournament schedule."""
+
+    models, personas, exploits, tournaments = _load_and_validate(config_dir)
+    tournament_cfg = tournaments.get(tournament)
+    if tournament_cfg is None:
+        try:
+            tournament_cfg = load_tournament(tournament, config_dir)
+        except ConfigError as exc:
+            _handle_config_error(exc)
+            return
+
+    effective_output_dir = output_dir or Path(tournament_cfg.settings.output_dir)
+    if not effective_output_dir.is_absolute():
+        effective_output_dir = (config_dir / effective_output_dir).resolve()
+    effective_output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
+        return _simulate_match(
+            attacker_cfg=spec.attacker,
+            defender_cfg=spec.defender,
+            exploit_cfg=spec.exploit,
+            persona_cfg=spec.persona,
+            defender_prompt=spec.defender_prompt,
+            secret=spec.secret,
+            secret_index=spec.secret_index,
+            max_turns=spec.turn_limit,
+            output_dir=destination,
+            match_id=spec.match_id,
+        )
+
+    controller = TournamentController(
+        config=tournament_cfg,
+        models=models,
+        personas=personas,
+        exploits=exploits,
+        run_match_fn=_match_runner,
+        seed=seed,
+    )
+
+    try:
+        result = controller.run(output_dir=effective_output_dir, max_workers=max_workers)
+    except NotImplementedError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_tournament_matrix(tournament_cfg, result.aggregates.get("pair_matrix", {}))
+
+    attacker_rows = result.aggregates.get("attacker_effectiveness", [])
+    if attacker_rows:
+        console.print("\n[bold]Attacker effectiveness[/bold]")
+        for entry in attacker_rows:
+            console.print(
+                f"  {entry['model']}: {entry['score'] * 100:.1f}% success across {int(entry['total'])} matches"
+            )
+
+    defender_rows = result.aggregates.get("defender_robustness", [])
+    if defender_rows:
+        console.print("\n[bold]Defender robustness[/bold]")
+        for entry in defender_rows:
+            console.print(
+                f"  {entry['model']}: {entry['score'] * 100:.1f}% prevention across {int(entry['total'])} matches"
+            )
+
+    total_matches = result.aggregates.get("total_matches", len(result.matches))
+    console.print(
+        f"\n[green]Tournament complete:[/green] {total_matches} matches"
+    )
+    console.print(f"Summary JSON: {result.summary_path}")
+    console.print(f"Summary CSV: {result.csv_path}")
+    console.print(f"Match artefacts: {result.matches_dir}")
+
+
 def _simulate_match(
     *,
     attacker_cfg: ModelCfg,
@@ -204,6 +300,7 @@ def _simulate_match(
     secret_index: int,
     max_turns: int,
     output_dir: Path,
+    match_id: str | None = None,
 ) -> dict[str, Any]:
     start_time = time.monotonic()
     transcript: list[dict[str, str]] = []
@@ -271,8 +368,10 @@ def _simulate_match(
         defender=defender_cfg.name,
         exploit=exploit_cfg.name,
         secret_index=secret_index,
+        match_id=match_id,
     )
     output_path = output_dir / filename
+    resolved_match_id = match_id or Path(filename).stem
 
     payload = {
         "meta": {
@@ -285,6 +384,7 @@ def _simulate_match(
             "defender_prompt": defender_prompt,
             "attacker_adapter": _attacker_adapter.name,
             "defender_adapter": _defender_adapter.name,
+            "match_id": resolved_match_id,
             "output_path": str(output_path),
         },
         "result": {
@@ -307,7 +407,35 @@ def _simulate_match(
     return payload
 
 
-def _match_filename(*, attacker: str, defender: str, exploit: str, secret_index: int) -> str:
+def _print_tournament_matrix(tournament: TournamentCfg, matrix: dict[str, dict[str, float]]) -> None:
+    table = Table(title=f"Success Rate – {tournament.name}")
+    defenders = list(tournament.models)
+    table.add_column("Attacker \\ Defender", justify="left")
+    for defender in defenders:
+        table.add_column(defender, justify="right")
+
+    for attacker in tournament.models:
+        row = [attacker]
+        attacker_row = matrix.get(attacker, {})
+        for defender in defenders:
+            rate = attacker_row.get(defender)
+            display = f"{rate * 100:.1f}%" if rate is not None else "—"
+            row.append(display)
+        table.add_row(*row)
+
+    console.print(table)
+
+
+def _match_filename(
+    *,
+    attacker: str,
+    defender: str,
+    exploit: str,
+    secret_index: int,
+    match_id: str | None = None,
+) -> str:
+    if match_id:
+        return match_id if match_id.endswith(".json") else f"{match_id}.json"
     safe = "_".join(
         part.replace(" ", "-")
         for part in (attacker, defender, exploit, f"secret{secret_index}")
