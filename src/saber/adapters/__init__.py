@@ -1,21 +1,38 @@
-"""Adapter implementations for interacting with model runtimes."""
+"""Adapter interfaces and runtime registry."""
 
 from __future__ import annotations
 
-from typing import Protocol
+from .base import (
+    AdapterAuthError,
+    AdapterRateLimit,
+    AdapterServerError,
+    AdapterUnavailable,
+    AdapterValidationError,
+    Message,
+    ModelAdapter,
+    Role,
+    build_messages,
+    make_message,
+    merge_system_prompts,
+)
+from .dummy import DummyAdapter
+from .ollama import OllamaAdapter
+from .registry import REGISTRY, create_adapter
 
-
-class AdapterProtocol(Protocol):
-    """Protocol describing the minimal adapter behaviour."""
-
-    name: str
-
-    def invoke(self, prompt: str) -> str:
-        """Run a prompt against the underlying model runtime."""
-        raise NotImplementedError
-
-
-from .dummy import DummyAdapter  # noqa: E402  # pylint: disable=wrong-import-order
-from .ollama import OllamaAdapter  # noqa: E402  # pylint: disable=wrong-import-order
-
-__all__ = ["AdapterProtocol", "DummyAdapter", "OllamaAdapter"]
+__all__ = [
+    "AdapterAuthError",
+    "AdapterRateLimit",
+    "AdapterServerError",
+    "AdapterUnavailable",
+    "AdapterValidationError",
+    "ModelAdapter",
+    "Message",
+    "Role",
+    "build_messages",
+    "merge_system_prompts",
+    "make_message",
+    "DummyAdapter",
+    "OllamaAdapter",
+    "REGISTRY",
+    "create_adapter",
+]

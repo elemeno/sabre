@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .base import Message, ModelAdapter, build_messages
+
 
 @dataclass(frozen=True)
 class DummyAdapter:
@@ -11,8 +13,24 @@ class DummyAdapter:
 
     name: str = "dummy"
 
+    def send(
+        self,
+        *,
+        system: str | None,
+        history: list[Message],
+        persona_system: str | None = None,
+        runtime: dict | None = None,
+        timeout_s: float = 60.0,
+    ) -> str:
+        """Return a simulated response using the last user input."""
+
+        messages = build_messages(system=system, persona_system=persona_system, history=history)
+        last_user = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
+        content = last_user["content"] if last_user else "Hello from dummy adapter."
+        return f"[{self.name}] {content}"
+
+    # Backwards compatibility for earlier tests/usage.
     def invoke(self, prompt: str) -> str:
-        """Return the prompt with an identifying prefix."""
         return f"[{self.name}] {prompt}"
 
     @staticmethod

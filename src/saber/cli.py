@@ -234,12 +234,26 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
+        return _simulate_match(
+            attacker_cfg=spec.attacker,
+            defender_cfg=spec.defender,
+            exploit_cfg=spec.exploit,
+            persona_cfg=spec.persona,
+            defender_prompt=spec.defender_prompt,
+            secret=spec.secret,
+            secret_index=spec.secret_index,
+            max_turns=spec.turn_limit,
+            output_dir=destination,
+            match_id=spec.match_id,
+        )
+
     controller = TournamentController(
         config=tournament_cfg,
         models=models,
         personas=personas,
         exploits=exploits,
-        run_match_fn=lambda spec, destination: {},  # placeholder, replaced below
+        run_match_fn=_match_runner,
         seed=seed,
     )
 
@@ -255,22 +269,6 @@ def run_tournament(
         if len(schedule) > 3:
             console.print(f"  ... ({len(schedule) - 3} more matches)")
         return
-
-    def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
-        return _simulate_match(
-            attacker_cfg=spec.attacker,
-            defender_cfg=spec.defender,
-            exploit_cfg=spec.exploit,
-            persona_cfg=spec.persona,
-            defender_prompt=spec.defender_prompt,
-            secret=spec.secret,
-            secret_index=spec.secret_index,
-            max_turns=spec.turn_limit,
-            output_dir=destination,
-            match_id=spec.match_id,
-        )
-
-    controller.run_match_fn = _match_runner
 
     try:
         result = controller.run(output_dir=effective_output_dir, max_workers=max_workers)

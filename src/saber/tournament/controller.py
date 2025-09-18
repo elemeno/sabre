@@ -136,12 +136,8 @@ class TournamentController:
         *,
         output_dir: Path,
         max_workers: int = 1,
-        dry_run: bool = False,
     ) -> TournamentRunResult:
         """Execute the schedule and persist summary artefacts."""
-
-        if dry_run:
-            raise ValueError("Use build_schedule() directly for dry runs.")
 
         if max_workers != 1:
             raise NotImplementedError("Multi-worker execution is not implemented yet.")
