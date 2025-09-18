@@ -2,15 +2,75 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
-from saber.config_loader import load_tournament_config
-from saber.detectors import detect_config_issues
+import pytest
+
+from saber.config_loader import (
+    ConfigError,
+    collect_configs,
+    load_tournament,
+    validate_configs,
+)
 
 
-def test_full_tournament_config_is_valid() -> None:
-    """The full sample tournament should validate cleanly."""
-    path = Path("config/tournaments/full_3x3.yaml")
-    config = load_tournament_config(path)
-    assert config["name"] == "Full 3x3 Tournament"
-    assert detect_config_issues(config) == []
+def _copy_config_tree(tmp_path: Path) -> Path:
+    destination = tmp_path / "config"
+    shutil.copytree(Path("config"), destination)
+    return destination
+
+
+def test_full_config_suite_valid(tmp_path: Path) -> None:
+    """The shipped sample configuration validates end-to-end."""
+    config_dir = _copy_config_tree(tmp_path)
+    models, personas, exploits, tournaments = collect_configs(config_dir)
+    validate_configs(models, personas, exploits, tournaments)
+    tournament = load_tournament("Full 3x3 Tournament", config_dir)
+    assert tournament.name == "Full 3x3 Tournament"
+
+
+def test_exploit_defender_setup_requires_placeholder(tmp_path: Path) -> None:
+    """Missing {secret} placeholder should fail validation."""
+    config_dir = _copy_config_tree(tmp_path)
+    exploit_file = config_dir / "exploits" / "secret_extraction.yaml"
+    text = exploit_file.read_text(encoding="utf-8")
+    exploit_file.write_text(text.replace("{secret}", "SECRET"), encoding="utf-8")
+
+    models, personas, exploits, tournaments = collect_configs(config_dir)
+    with pytest.raises(ConfigError) as excinfo:
+        validate_configs(models, personas, exploits, tournaments)
+    assert "defender_setup" in str(excinfo.value)
+    assert "{secret}" in str(excinfo.value)
+
+
+def test_exploit_persona_reference_must_exist(tmp_path: Path) -> None:
+    """Exploit referencing unknown persona raises ConfigError."""
+    config_dir = _copy_config_tree(tmp_path)
+    exploit_file = config_dir / "exploits" / "secret_extraction.yaml"
+    text = exploit_file.read_text(encoding="utf-8")
+    exploit_file.write_text(
+        text.replace("- \"social_engineer\"", "- \"ghost_persona\""),
+        encoding="utf-8",
+    )
+
+    models, personas, exploits, tournaments = collect_configs(config_dir)
+    with pytest.raises(ConfigError) as excinfo:
+        validate_configs(models, personas, exploits, tournaments)
+    assert "ghost_persona" in str(excinfo.value)
+
+
+def test_tournament_model_reference_must_exist(tmp_path: Path) -> None:
+    """Tournament referencing unknown model raises ConfigError."""
+    config_dir = _copy_config_tree(tmp_path)
+    tournament_file = config_dir / "tournaments" / "full_3x3.yaml"
+    text = tournament_file.read_text(encoding="utf-8")
+    tournament_file.write_text(
+        text.replace("- \"zephyr-7b\"", "- \"ghost-model\""),
+        encoding="utf-8",
+    )
+
+    models, personas, exploits, tournaments = collect_configs(config_dir)
+    with pytest.raises(ConfigError) as excinfo:
+        validate_configs(models, personas, exploits, tournaments)
+    assert "ghost-model" in str(excinfo.value)

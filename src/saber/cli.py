@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable, Mapping
 
 import typer
 from rapidfuzz import process
 from rich.console import Console
 from rich.table import Table
 
-from saber.config_loader import TournamentConfig, load_tournament_config
+from saber.config_loader import (
+    ConfigError,
+    TournamentCfg,
+    collect_configs,
+    load_tournament,
+    validate_configs,
+)
 from saber.detectors import detect_config_issues
 from saber.tournament import TournamentController
 
@@ -20,11 +27,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
 
 
-def _available_config_paths() -> list[Path]:
-    """Return all YAML config files in the default directory."""
-    if not DEFAULT_CONFIG_DIR.exists():
-        return []
-    return sorted(DEFAULT_CONFIG_DIR.rglob("*.yaml"))
+def _handle_config_error(exc: ConfigError) -> None:
+    console.print(str(exc))
+    raise typer.Exit(code=1) from exc
 
 
 def _relative_name(path: Path) -> str:
@@ -35,57 +40,71 @@ def _relative_name(path: Path) -> str:
         return str(path)
 
 
-def _suggest_config(target: str) -> str | None:
-    """Suggest the closest matching config filename using fuzzy matching."""
-    candidates = [_relative_name(path) for path in _available_config_paths()]
+def _suggest_tournament(target: str, tournaments: Mapping[str, TournamentCfg]) -> str | None:
+    candidates = list(tournaments.keys())
+    candidates.extend(_relative_name(cfg.path) for cfg in tournaments.values())
     if not candidates:
         return None
     match = process.extractOne(target, candidates, score_cutoff=65)
     return match[0] if match else None
 
 
-def _maybe_from_default_dir(config_path: Path) -> Path:
-    """Resolve *config_path* relative to the default directory when possible."""
-    if config_path.exists():
-        return config_path
-    fallback = DEFAULT_CONFIG_DIR / config_path
-    return fallback if fallback.exists() else config_path
+def _resolve_tournament(identifier: str, tournaments: Mapping[str, TournamentCfg]) -> TournamentCfg:
+    direct = tournaments.get(identifier)
+    if direct is not None:
+        return direct
 
+    candidate = Path(identifier)
+    candidate_paths = [candidate]
+    if not candidate.is_absolute():
+        candidate_paths.append(DEFAULT_CONFIG_DIR / "tournaments" / candidate)
+        candidate_paths.append(DEFAULT_CONFIG_DIR / candidate)
 
-def _load_config_or_exit(config_path: Path) -> TournamentConfig:
-    """Load a configuration file or exit with an error message."""
-    resolved = _maybe_from_default_dir(config_path)
-    try:
-        return load_tournament_config(resolved)
-    except FileNotFoundError as exc:
-        suggestion = _suggest_config(config_path.as_posix())
-        hint = f" Did you mean '{suggestion}'?" if suggestion else ""
-        console.print(f"[red]Error:[/red] {exc}{hint}")
-        raise typer.Exit(code=1) from exc
-    except (TypeError, ValueError) as exc:
-        console.print(f"[red]Validation failed:[/red] {exc}")
-        raise typer.Exit(code=1) from exc
+    resolved = {path.resolve() for path in candidate_paths if path.suffix or path.exists()}
+    for cfg in tournaments.values():
+        cfg_path = cfg.path.resolve()
+        if cfg_path in resolved or cfg_path.name == candidate.name or cfg_path.stem == candidate.stem:
+            return cfg
+
+    suggestion = _suggest_tournament(identifier, tournaments)
+    hint = f" Did you mean '{suggestion}'?" if suggestion else ""
+    raise ConfigError(
+        f"[bold red]Config error[/bold red]: [cyan]{identifier}[/cyan] not found.{hint}"
+    )
 
 
 @app.command()
 def list_configs() -> None:
     """Show available sample configurations."""
-    paths = _available_config_paths()
-    if not paths:
-        console.print("[yellow]No configuration files found in 'config/'.[/yellow]")
+    try:
+        _, _, _, tournaments = collect_configs(DEFAULT_CONFIG_DIR)
+    except ConfigError as exc:
+        _handle_config_error(exc)
         return
-    table = Table(title="Sample Configurations")
+
+    if not tournaments:
+        console.print("[yellow]No tournament files found in 'config/tournaments'.[/yellow]")
+        return
+
+    table = Table(title="Sample Tournaments")
     table.add_column("Name", justify="left")
     table.add_column("Path", justify="left")
-    for path in paths:
-        table.add_row(_relative_name(path), str(path))
+    for cfg in sorted(tournaments.values(), key=lambda item: item.name):
+        table.add_row(cfg.name, str(cfg.path))
     console.print(table)
 
 
 @app.command()
-def validate(config_path: Path = typer.Argument(..., exists=False, dir_okay=False, readable=True)) -> None:
+def validate(identifier: str = typer.Argument(..., help="Tournament name or path")) -> None:
     """Validate a tournament configuration file."""
-    config = _load_config_or_exit(config_path)
+    try:
+        models, personas, exploits, tournaments = collect_configs(DEFAULT_CONFIG_DIR)
+        validate_configs(models, personas, exploits, tournaments)
+        config = _resolve_tournament(identifier, tournaments)
+    except ConfigError as exc:
+        _handle_config_error(exc)
+        return
+
     issues = detect_config_issues(config)
     if issues:
         table = Table(title="Heuristic Findings")
@@ -98,18 +117,23 @@ def validate(config_path: Path = typer.Argument(..., exists=False, dir_okay=Fals
 
 
 @app.command()
-def dry_run(config_path: Path = typer.Argument(..., exists=False, dir_okay=False, readable=True)) -> None:
+def dry_run(identifier: str = typer.Argument(..., help="Tournament name or path")) -> None:
     """Run a dry tournament simulation using the dummy adapter."""
-    config = _load_config_or_exit(config_path)
+    try:
+        config = load_tournament(identifier, DEFAULT_CONFIG_DIR)
+    except ConfigError as exc:
+        _handle_config_error(exc)
+        return
+
     controller = TournamentController(config=config)
     console.print(controller.summary())
     for response in controller.dry_run():
         console.print(f"  • {response}")
 
 
-def main() -> None:
+def main(argv: Iterable[str] | None = None) -> None:
     """Invoke the Typer application."""
-    app()
+    app(args=list(argv) if argv is not None else None)
 
 
 if __name__ == "__main__":

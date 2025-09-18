@@ -1,39 +1,165 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Saber Tournament Configuration",
-  "type": "object",
-  "required": ["name", "description", "models", "exploits", "settings"],
-  "additionalProperties": false,
-  "properties": {
-    "name": {
-      "type": "string",
-      "minLength": 1
-    },
-    "description": {
-      "type": "string",
-      "minLength": 1
-    },
-    "models": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "uniqueItems": true
-    },
-    "exploits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "uniqueItems": true
-    },
-    "settings": {
+  "$id": "https://saber.dev/schemas/config-schema.json",
+  "title": "Saber Configuration Schema",
+  "$defs": {
+    "runtimeConfig": {
       "type": "object",
-      "required": ["max_turns", "repetitions", "output_dir", "privacy_tier"],
+      "additionalProperties": {
+        "anyOf": [
+          {"type": "string"},
+          {"type": "number"},
+          {"type": "integer"},
+          {"type": "boolean"},
+          {
+            "type": "array",
+            "items": {}
+          },
+          {
+            "type": "object",
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "detection": {
+      "type": "object",
+      "required": ["method"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "exact_match",
+            "regex",
+            "fuzzy_match",
+            "embedding"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": true
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["name", "adapter", "model_id"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtimeConfig"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "persona": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "system_prompt",
+        "opening_message"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "system_prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opening_message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "exploit": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "personas",
+        "defender_setup",
+        "secrets",
+        "detection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "personas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "defender_setup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "detection": {
+          "$ref": "#/$defs/detection"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "tournamentSettings": {
+      "type": "object",
+      "required": [
+        "max_turns",
+        "repetitions",
+        "output_dir",
+        "privacy_tier"
+      ],
       "additionalProperties": false,
       "properties": {
         "max_turns": {
@@ -51,6 +177,51 @@
         "privacy_tier": {
           "type": "string",
           "enum": ["public", "private"]
+        }
+      }
+    },
+    "tournament": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "models",
+        "exploits",
+        "settings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "exploits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "settings": {
+          "$ref": "#/$defs/tournamentSettings"
+        },
+        "notes": {
+          "type": "string"
         }
       }
     }

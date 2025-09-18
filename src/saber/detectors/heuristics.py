@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from saber.config_loader import TournamentConfig
+from saber.config_loader import TournamentCfg
 
 
 @dataclass(frozen=True)
@@ -21,13 +21,13 @@ def _sanitize_count(count: int) -> int:
     return max(count, 0)
 
 
-def detect_config_issues(config: TournamentConfig) -> list[HeuristicIssue]:
+def detect_config_issues(config: TournamentCfg) -> list[HeuristicIssue]:
     """Run lightweight checks that complement schema validation."""
     issues: list[HeuristicIssue] = []
-    settings = config["settings"]
+    settings = config.settings
 
-    max_turns = _sanitize_count(settings["max_turns"])
-    if max_turns != settings["max_turns"]:
+    max_turns = _sanitize_count(settings.max_turns)
+    if max_turns != settings.max_turns:
         issues.append(
             HeuristicIssue(
                 severity="warning",
@@ -43,7 +43,7 @@ def detect_config_issues(config: TournamentConfig) -> list[HeuristicIssue]:
             )
         )
 
-    repetitions = _sanitize_count(settings["repetitions"])
+    repetitions = _sanitize_count(settings.repetitions)
     if repetitions >= 25:
         issues.append(
             HeuristicIssue(
@@ -52,7 +52,7 @@ def detect_config_issues(config: TournamentConfig) -> list[HeuristicIssue]:
             )
         )
 
-    if len(config["models"]) == 1 and len(config["exploits"]) > 5:
+    if len(config.models) == 1 and len(config.exploits) > 5:
         issues.append(
             HeuristicIssue(
                 severity="info",
