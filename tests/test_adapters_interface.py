@@ -38,8 +38,11 @@ def test_dummy_adapter_satisfies_protocol() -> None:
     "adapter_id",
     ["ollama", "lmstudio"],
 )
-def test_registry_returns_stub_adapter(adapter_id: str) -> None:
-    adapter = create_adapter(adapter_id, _model_cfg(adapter_id))
+def test_registry_returns_local_adapter(adapter_id: str) -> None:
+    try:
+        adapter = create_adapter(adapter_id, _model_cfg(adapter_id))
+    except AdapterUnavailable:
+        pytest.skip(f"{adapter_id} adapter dependencies not available")
     assert isinstance(adapter, ModelAdapter)
     assert adapter.name == adapter_id
 

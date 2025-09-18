@@ -7,9 +7,11 @@ from typing import Callable, Dict
 
 from saber.config_loader import ModelCfg
 
-from .base import AdapterUnavailable, ModelAdapter
 from .anthropic_adapt import AnthropicAdapter
+from .base import AdapterUnavailable, ModelAdapter
 from .gemini_adapt import GeminiAdapter
+from .lmstudio_adapt import LMStudioAdapter
+from .ollama_adapt import OllamaAdapter
 from .openai_adapt import OpenAIAdapter
 
 
@@ -43,8 +45,8 @@ REGISTRY: Dict[str, Callable[[ModelCfg], ModelAdapter]] = {
     "openai": lambda cfg: OpenAIAdapter(cfg),
     "anthropic": lambda cfg: AnthropicAdapter(cfg),
     "gemini": lambda cfg: GeminiAdapter(cfg),
-    "ollama": _make_stub("ollama"),
-    "lmstudio": _make_stub("lmstudio"),
+    "ollama": lambda cfg: OllamaAdapter(cfg),
+    "lmstudio": lambda cfg: LMStudioAdapter(cfg),
 }
 
 
