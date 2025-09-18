@@ -30,7 +30,7 @@ def test_dummy_adapter_satisfies_protocol() -> None:
 
 @pytest.mark.parametrize(
     "adapter_id",
-    ["anthropic", "gemini", "ollama", "lmstudio"],
+    ["gemini", "ollama", "lmstudio"],
 )
 def test_registry_returns_stub_adapter(adapter_id: str) -> None:
     adapter = create_adapter(adapter_id, _model_cfg(adapter_id))
@@ -48,6 +48,18 @@ def test_registry_openai_behaviour(monkeypatch: pytest.MonkeyPatch) -> None:
     else:
         with pytest.raises(AdapterAuthError):
             create_adapter("openai", _model_cfg("openai"))
+
+
+def test_registry_anthropic_behaviour(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    try:
+        importlib.import_module("anthropic")
+    except ModuleNotFoundError:
+        with pytest.raises(AdapterUnavailable):
+            create_adapter("anthropic", _model_cfg("anthropic"))
+    else:
+        with pytest.raises(AdapterAuthError):
+            create_adapter("anthropic", _model_cfg("anthropic"))
 
 def test_registry_unknown_adapter_raises() -> None:
     with pytest.raises(AdapterUnavailable):
