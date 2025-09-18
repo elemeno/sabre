@@ -21,7 +21,9 @@ from saber.config_loader import (
     load_tournament,
     validate_configs,
 )
-from saber.adapters import DummyAdapter
+from saber.adapters import DummyAdapter, ModelAdapter, create_adapter
+from saber.adapters.base import AdapterUnavailable
+from saber.adapters.util import retry_send
 from saber.detectors import run_detection
 from saber.tournament import MatchSpec, TournamentController
 
@@ -124,6 +126,11 @@ def run_match(
     persona: str = typer.Option(..., "--persona", help="Persona name for attacker."),
     secret_index: int = typer.Option(..., "--secret-index", help="Secret index to target."),
     max_turns: int = typer.Option(6, "--max-turns", min=2, help="Maximum number of turns."),
+    adapter_id: str | None = typer.Option(
+        None,
+        "--adapter",
+        help="Adapter provider (openai, anthropic, gemini, ollama, lmstudio). Defaults to attacker model config.",
+    ),
     output_dir: Path = typer.Option(
         Path("results"),
         "--output-dir",
@@ -164,6 +171,14 @@ def run_match(
     secret = exploit_cfg.secrets[secret_index]
     defender_prompt = exploit_cfg.defender_setup.replace("{secret}", secret)
 
+    chosen_adapter = adapter_id or attacker_cfg.adapter
+    if not chosen_adapter:
+        console.print("[red]Specify an adapter via --adapter or in the model config.[/red]")
+        raise typer.Exit(code=1)
+
+    attacker_adapter = create_adapter(chosen_adapter, attacker_cfg)
+    defender_adapter = create_adapter(chosen_adapter, defender_cfg)
+
     result = _simulate_match(
         attacker_cfg=attacker_cfg,
         defender_cfg=defender_cfg,
@@ -174,6 +189,8 @@ def run_match(
         secret_index=secret_index,
         max_turns=max_turns,
         output_dir=output_dir,
+        attacker_adapter=attacker_adapter,
+        defender_adapter=defender_adapter,
     )
 
     status = "SUCCESS" if result["result"]["success"] else "FAILURE"
@@ -215,6 +232,11 @@ def run_tournament(
         help="Destination for tournament artefacts (defaults to the tournament setting).",
     ),
     seed: int = typer.Option(42, "--seed", help="Seed used for persona and secret rotation."),
+    adapter_id: str | None = typer.Option(
+        None,
+        "--adapter",
+        help="Adapter provider (openai, anthropic, gemini, ollama, lmstudio). Defaults to each model config.",
+    ),
     max_workers: int = typer.Option(1, "--max-workers", min=1, help="Number of workers (future use)."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the planned schedule without running matches."),
 ) -> None:
@@ -234,7 +256,17 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _select_adapter(model_cfg: ModelCfg) -> ModelAdapter:
+        provider = adapter_id or model_cfg.adapter
+        if not provider:
+            raise AdapterUnavailable(
+                f"Model '{model_cfg.name}' does not define an adapter. Use --adapter to specify one."
+            )
+        return create_adapter(provider, model_cfg)
+
     def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
+        attacker_adapter = _select_adapter(spec.attacker)
+        defender_adapter = _select_adapter(spec.defender)
         return _simulate_match(
             attacker_cfg=spec.attacker,
             defender_cfg=spec.defender,
@@ -246,6 +278,8 @@ def run_tournament(
             max_turns=spec.turn_limit,
             output_dir=destination,
             match_id=spec.match_id,
+            attacker_adapter=attacker_adapter,
+            defender_adapter=defender_adapter,
         )
 
     controller = TournamentController(
@@ -315,12 +349,14 @@ def _simulate_match(
     max_turns: int,
     output_dir: Path,
     match_id: str | None = None,
+    attacker_adapter: ModelAdapter | None = None,
+    defender_adapter: ModelAdapter | None = None,
 ) -> dict[str, Any]:
     start_time = time.monotonic()
     transcript: list[dict[str, str]] = []
 
-    _attacker_adapter = DummyAdapter(name=f"attacker::{attacker_cfg.name}")
-    _defender_adapter = DummyAdapter(name=f"defender::{defender_cfg.name}")
+    _attacker_adapter = attacker_adapter or DummyAdapter(name=f"attacker::{attacker_cfg.name}")
+    _defender_adapter = defender_adapter or DummyAdapter(name=f"defender::{defender_cfg.name}")
 
     attacker_message = persona_cfg.opening_message
     transcript.append({"role": "attacker", "content": attacker_message})
