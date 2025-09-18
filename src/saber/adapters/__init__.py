@@ -17,6 +17,7 @@ from .base import (
 )
 from .dummy import DummyAdapter
 from .ollama import OllamaAdapter
+from .openai_adapt import OpenAIAdapter
 from .registry import REGISTRY, create_adapter
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "make_message",
     "DummyAdapter",
     "OllamaAdapter",
+    "OpenAIAdapter",
     "REGISTRY",
     "create_adapter",
 ]

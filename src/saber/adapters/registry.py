@@ -8,6 +8,7 @@ from typing import Callable, Dict
 from saber.config_loader import ModelCfg
 
 from .base import AdapterUnavailable, ModelAdapter
+from .openai_adapt import OpenAIAdapter
 
 
 @dataclass
@@ -37,7 +38,7 @@ def _make_stub(provider: str) -> Callable[[ModelCfg], ModelAdapter]:
 
 
 REGISTRY: Dict[str, Callable[[ModelCfg], ModelAdapter]] = {
-    "openai": _make_stub("openai"),
+    "openai": lambda cfg: OpenAIAdapter(cfg),
     "anthropic": _make_stub("anthropic"),
     "gemini": _make_stub("gemini"),
     "ollama": _make_stub("ollama"),
