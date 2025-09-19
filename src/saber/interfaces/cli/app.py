@@ -9,7 +9,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from saber.application.match_service import MatchContext, MatchService
+from saber.application.context import ApplicationContext
+from saber.application.match_service import MatchContext
 from saber.config_loader import (
     ConfigError,
     ExploitCfg,
@@ -172,7 +173,7 @@ def run_match(
         console.print("[red]Specify an adapter via --adapter or in the model config.[/red]")
         raise typer.Exit(code=1)
 
-    service = MatchService(console=console)
+    app_context = ApplicationContext.create(console=console)
     context = MatchContext(
         attacker_cfg=attacker_cfg,
         defender_cfg=defender_cfg,
@@ -186,7 +187,7 @@ def run_match(
         attacker_adapter_id=chosen_adapter,
         defender_adapter_id=chosen_adapter,
     )
-    result = service.run(context)
+    result = app_context.match_service.run(context)
 
     status = "SUCCESS" if result["result"]["success"] else "FAILURE"
     color = "green" if result["result"]["success"] else "red"
@@ -251,15 +252,10 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
-    service = MatchService(console=console)
+    app_context = ApplicationContext.create(console=console)
 
     def _select_adapter(model_cfg: ModelCfg) -> str:
-        provider = adapter_id or model_cfg.adapter
-        if not provider:
-            raise AdapterUnavailable(
-                f"Model '{model_cfg.name}' does not define an adapter. Use --adapter to specify one."
-            )
-        return provider
+        return app_context.resolve_adapter_provider(model_cfg, adapter_id)
 
     def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
         attacker_provider = _select_adapter(spec.attacker)
@@ -278,7 +274,7 @@ def run_tournament(
             attacker_adapter_id=attacker_provider,
             defender_adapter_id=defender_provider,
         )
-        return service.run(context)
+        return app_context.match_service.run(context)
 
     controller = TournamentController(
         config=tournament_cfg,
