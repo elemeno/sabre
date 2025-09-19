@@ -12,7 +12,7 @@ from rich.console import Console
 from saber.adapters import DummyAdapter, ModelAdapter, create_adapter
 from saber.adapters.util import retry_send
 from saber.detectors import run_detection
-from saber.infrastructure.config.loader import (
+from saber.domain.config import (
     ModelCfg,
     PersonaCfg,
     ExploitCfg,
