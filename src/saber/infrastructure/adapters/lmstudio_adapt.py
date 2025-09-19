@@ -1,4 +1,4 @@
-"""LM Studio adapter implementation."""
+"""LM Studio adapter implementation using the OpenAI-compatible API."""
 
 from __future__ import annotations
 
@@ -17,7 +17,14 @@ from .base import (
     ModelAdapter,
     build_messages,
 )
-from .http_utils import ensure_requests, map_http_error
+from .http_utils import ensure_requests, post_json
+
+try:  # pragma: no cover - optional dependency
+    from openai import OpenAI
+    _HAS_OPENAI = True
+except ImportError:  # pragma: no cover
+    OpenAI = None  # type: ignore
+    _HAS_OPENAI = False
 
 _OPENAI_PATH = "/v1/chat/completions"
 _FALLBACK_PATH = "/chat/completions"
@@ -25,7 +32,7 @@ _FALLBACK_PATH = "/chat/completions"
 
 @dataclass
 class LMStudioAdapter:
-    """Adapter for LM Studio in OpenAI-compatible server mode."""
+    """Adapter for LM Studio running in OpenAI-compatible server mode."""
 
     model_cfg: ModelCfg
     name: str = "lmstudio"
@@ -33,7 +40,17 @@ class LMStudioAdapter:
     def __post_init__(self) -> None:
         self._model_id = self.model_cfg.model_id
         self._default_runtime = self.model_cfg.runtime or {}
-        self._base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234")
+        self._base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234").rstrip("/")
+        self._api_key = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
+        self._client = None
+        if _HAS_OPENAI:
+            try:
+                base_url = self._base_url
+                if not base_url.endswith("/v1"):
+                    base_url = f"{base_url}/v1"
+                self._client = OpenAI(api_key=self._api_key, base_url=base_url)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise AdapterUnavailable("Failed to initialise LM Studio OpenAI client.") from exc
 
     # ------------------------------------------------------------------
     def send(
@@ -45,35 +62,13 @@ class LMStudioAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
-        ensure_requests()
-        import requests  # type: ignore  # noqa: WPS433
         messages = build_messages(system=system, persona_system=persona_system, history=history)
         payload = self._build_payload(messages=messages, runtime=runtime)
 
-        response = self._post(_OPENAI_PATH, payload, timeout_s)
-        if response is None:
-            response = self._post(_FALLBACK_PATH, payload, timeout_s)
-        if response is None:
-            raise AdapterUnavailable("LM Studio API is unreachable. Ensure the server is running.")
+        if self._client is not None:
+            return self._send_via_openai_client(payload, timeout_s)
 
-        if response.status_code == 401:
-            raise AdapterAuthError(response.text)
-        if response.status_code == 429:
-            raise AdapterRateLimit(response.text)
-        if 500 <= response.status_code < 600:
-            raise AdapterServerError(response.text)
-        if not response.ok:
-            raise AdapterUnavailable(response.text)
-
-        data = response.json()
-        choices = data.get("choices") or []
-        if not choices:
-            raise AdapterUnavailable("LM Studio response did not include choices.")
-        message = choices[0].get("message") or {}
-        content = message.get("content", "").strip()
-        if not content:
-            raise AdapterUnavailable("LM Studio response content is empty.")
-        return content
+        return self._send_via_http(payload, timeout_s)
 
     # ------------------------------------------------------------------
     def _build_payload(self, messages: List[Message], runtime: Dict | None) -> Dict[str, object]:
@@ -99,21 +94,57 @@ class LMStudioAdapter:
             params["top_p"] = float(merged["top_p"])
         return params
 
-    def _post(self, path: str, payload: Dict[str, object], timeout_s: float):
-        url = f"{self._base_url.rstrip('/')}{path}"
-        if requests is None:  # pragma: no cover - guard
-            return None
-        import requests  # type: ignore  # noqa: WPS433
-
+    def _send_via_openai_client(self, payload: Dict[str, object], timeout_s: float) -> str:
         try:
-            response = requests.post(url, json=payload, timeout=timeout_s)
-        except requests.exceptions.RequestException:
-            return None
-        if response.status_code == 404:
-            return None
-        if response.status_code >= 400:
-            raise map_http_error(response.status_code, response.text)
-        return response
+            completion = self._client.chat.completions.create(  # type: ignore[union-attr]
+                model=self._model_id,
+                messages=payload["messages"],
+                temperature=payload.get("temperature"),
+                top_p=payload.get("top_p"),
+                max_tokens=payload.get("max_tokens"),
+                timeout=timeout_s,
+            )
+        except Exception as exc:  # pragma: no cover
+            message = str(exc)
+            status = getattr(exc, "status_code", 503)
+            raise _map_status_to_error(status, message)
+
+        choices = getattr(completion, "choices", [])
+        if not choices:
+            raise AdapterUnavailable("LM Studio response did not include choices.")
+        message = choices[0].message
+        content = getattr(message, "content", "")
+        if not content:
+            raise AdapterUnavailable("LM Studio response content is empty.")
+        return content.strip()
+
+    def _send_via_http(self, payload: Dict[str, object], timeout_s: float) -> str:
+        ensure_requests()
+        url = f"{self._base_url}{_OPENAI_PATH}"
+        try:
+            data = post_json(url, payload, timeout_s=timeout_s)
+        except Exception:
+            fallback_url = f"{self._base_url}{_FALLBACK_PATH}"
+            data = post_json(fallback_url, payload, timeout_s=timeout_s)
+
+        choices = data.get("choices") or []
+        if not choices:
+            raise AdapterUnavailable("LM Studio response did not include choices.")
+        message = choices[0].get("message") or {}
+        content = message.get("content", "").strip()
+        if not content:
+            raise AdapterUnavailable("LM Studio response content is empty.")
+        return content
+
+
+def _map_status_to_error(status: int, message: str) -> Exception:
+    if status == 401:
+        return AdapterAuthError(message)
+    if status == 429:
+        return AdapterRateLimit(message)
+    if 500 <= status < 600:
+        return AdapterServerError(message)
+    return AdapterUnavailable(message)
 
 
 __all__ = ["LMStudioAdapter"]
