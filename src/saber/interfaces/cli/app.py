@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -11,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from saber.application.match_service import MatchContext, MatchService
 from saber.config_loader import (
     ConfigError,
     ExploitCfg,
@@ -21,10 +20,7 @@ from saber.config_loader import (
     load_tournament,
     validate_configs,
 )
-from saber.adapters import DummyAdapter, ModelAdapter, create_adapter
-from saber.adapters.base import AdapterUnavailable
-from saber.adapters.util import retry_send
-from saber.detectors import run_detection
+from saber.adapters import AdapterUnavailable
 from saber.tournament import MatchSpec, TournamentController
 
 app = typer.Typer(help="CLI for Saber configuration management and match simulation.")
@@ -176,10 +172,8 @@ def run_match(
         console.print("[red]Specify an adapter via --adapter or in the model config.[/red]")
         raise typer.Exit(code=1)
 
-    attacker_adapter = create_adapter(chosen_adapter, attacker_cfg)
-    defender_adapter = create_adapter(chosen_adapter, defender_cfg)
-
-    result = _simulate_match(
+    service = MatchService(console=console)
+    context = MatchContext(
         attacker_cfg=attacker_cfg,
         defender_cfg=defender_cfg,
         exploit_cfg=exploit_cfg,
@@ -189,11 +183,10 @@ def run_match(
         secret_index=secret_index,
         max_turns=max_turns,
         output_dir=output_dir,
-        attacker_adapter=attacker_adapter,
-        defender_adapter=defender_adapter,
         attacker_adapter_id=chosen_adapter,
         defender_adapter_id=chosen_adapter,
     )
+    result = service.run(context)
 
     status = "SUCCESS" if result["result"]["success"] else "FAILURE"
     color = "green" if result["result"]["success"] else "red"
@@ -258,18 +251,20 @@ def run_tournament(
         effective_output_dir = (config_dir / effective_output_dir).resolve()
     effective_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _select_adapter(model_cfg: ModelCfg) -> tuple[ModelAdapter, str]:
+    service = MatchService(console=console)
+
+    def _select_adapter(model_cfg: ModelCfg) -> str:
         provider = adapter_id or model_cfg.adapter
         if not provider:
             raise AdapterUnavailable(
                 f"Model '{model_cfg.name}' does not define an adapter. Use --adapter to specify one."
             )
-        return create_adapter(provider, model_cfg), provider
+        return provider
 
     def _match_runner(spec: MatchSpec, destination: Path) -> dict[str, Any]:
-        attacker_adapter, attacker_provider = _select_adapter(spec.attacker)
-        defender_adapter, defender_provider = _select_adapter(spec.defender)
-        return _simulate_match(
+        attacker_provider = _select_adapter(spec.attacker)
+        defender_provider = _select_adapter(spec.defender)
+        context = MatchContext(
             attacker_cfg=spec.attacker,
             defender_cfg=spec.defender,
             exploit_cfg=spec.exploit,
@@ -280,11 +275,10 @@ def run_tournament(
             max_turns=spec.turn_limit,
             output_dir=destination,
             match_id=spec.match_id,
-            attacker_adapter=attacker_adapter,
-            defender_adapter=defender_adapter,
             attacker_adapter_id=attacker_provider,
             defender_adapter_id=defender_provider,
         )
+        return service.run(context)
 
     controller = TournamentController(
         config=tournament_cfg,
@@ -339,151 +333,6 @@ def run_tournament(
     console.print(f"Summary JSON: {result.summary_path}")
     console.print(f"Summary CSV: {result.csv_path}")
     console.print(f"Match artefacts: {result.matches_dir}")
-
-
-def _simulate_match(
-    *,
-    attacker_cfg: ModelCfg,
-    defender_cfg: ModelCfg,
-    exploit_cfg: ExploitCfg,
-    persona_cfg: PersonaCfg,
-    defender_prompt: str,
-    secret: str,
-    secret_index: int,
-    max_turns: int,
-    output_dir: Path,
-    match_id: str | None = None,
-    attacker_adapter: ModelAdapter | None = None,
-    defender_adapter: ModelAdapter | None = None,
-    attacker_adapter_id: str | None = None,
-    defender_adapter_id: str | None = None,
-) -> dict[str, Any]:
-    start_time = time.monotonic()
-    transcript: list[dict[str, str]] = []
-
-    _attacker_adapter = attacker_adapter or DummyAdapter(name=f"attacker::{attacker_cfg.name}")
-    _defender_adapter = defender_adapter or DummyAdapter(name=f"defender::{defender_cfg.name}")
-
-    attacker_message = persona_cfg.opening_message
-    transcript.append({"role": "attacker", "content": attacker_message})
-    turns = 1
-    success = False
-    reason = "turn_limit_reached"
-    turns_to_success: int | None = None
-    detection_confidence = 0.0
-    detection_details: dict[str, object] | None = None
-
-    history: list[dict[str, str]] = [{"role": "user", "content": attacker_message}]
-
-    while turns < max_turns:
-        if defender_adapter is not None:
-            def _call_defender() -> str:
-                return _defender_adapter.send(
-                    system=defender_prompt,
-                    persona_system=None,
-                    history=history,
-                    runtime=None,
-                )
-
-            defender_message = retry_send(_call_defender, console=console)
-        else:
-            defender_message = DummyAdapter.defender_response(
-                defender_prompt=defender_prompt,
-                attacker_message=attacker_message,
-                secret=secret,
-            )
-        transcript.append({"role": "defender", "content": defender_message})
-        turns += 1
-        history.append({"role": "assistant", "content": defender_message})
-
-        try:
-            detected, confidence, details = run_detection(
-                exploit_cfg.detection.method,
-                dict(exploit_cfg.detection.params),
-                defender_message,
-                secret,
-            )
-        except NotImplementedError as exc:
-            console.print(f"[red]Detection failed:[/red] {exc}")
-            raise typer.Exit(code=1) from exc
-        transcript[-1]["detection"] = {
-            "method": exploit_cfg.detection.method,
-            "confidence": confidence,
-            "details": details,
-        }
-        detection_confidence = confidence
-        detection_details = details
-
-        if detected:
-            success = True
-            reason = "secret_revealed"
-            turns_to_success = len(transcript)
-            break
-
-        if turns >= max_turns:
-            reason = "turn_limit_reached"
-            break
-
-        attacker_message = DummyAdapter.attacker_response(
-            persona_question=persona_cfg.opening_message,
-            last_defender_message=defender_message,
-        )
-        transcript.append({"role": "attacker", "content": attacker_message})
-        turns += 1
-        history.append({"role": "user", "content": attacker_message})
-
-    elapsed = time.monotonic() - start_time
-    output_dir.mkdir(parents=True, exist_ok=True)
-    filename = _match_filename(
-        attacker=attacker_cfg.name,
-        defender=defender_cfg.name,
-        exploit=exploit_cfg.name,
-        secret_index=secret_index,
-        match_id=match_id,
-    )
-    output_path = output_dir / filename
-    resolved_match_id = match_id or Path(filename).stem
-
-    payload = {
-        "meta": {
-            "attacker": attacker_cfg.name,
-            "defender": defender_cfg.name,
-            "exploit": exploit_cfg.name,
-            "persona": persona_cfg.name,
-            "secret_index": secret_index,
-            "max_turns": max_turns,
-            "defender_prompt": defender_prompt,
-            "attacker_adapter": {
-                "name": _attacker_adapter.name,
-                "provider": attacker_adapter_id or attacker_cfg.adapter,
-                "model_id": attacker_cfg.model_id,
-            },
-            "defender_adapter": {
-                "name": _defender_adapter.name,
-                "provider": defender_adapter_id or defender_cfg.adapter,
-                "model_id": defender_cfg.model_id,
-            },
-            "match_id": resolved_match_id,
-            "output_path": str(output_path),
-        },
-        "result": {
-            "success": success,
-            "reason": reason,
-            "confidence": detection_confidence,
-            "details": detection_details or {},
-        },
-        "transcript": transcript,
-        "runtime": {
-            "turns": len(transcript),
-            "elapsed_seconds": round(elapsed, 4),
-            "turns_to_success": turns_to_success,
-        },
-    }
-
-    with output_path.open("w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2)
-
-    return payload
 
 
 def _print_tournament_matrix(tournament: TournamentCfg, matrix: dict[str, dict[str, float]]) -> None:
