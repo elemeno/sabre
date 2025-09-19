@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass
 from typing import Dict, List
@@ -27,13 +26,7 @@ except ImportError:  # pragma: no cover
     genai = None  # type: ignore[assignment]
     _HAS_GENAI = False
 
-try:  # pragma: no cover - optional dependency
-    import requests
-except ImportError as exc:  # pragma: no cover
-    requests = None  # type: ignore[assignment]
-    _REQUESTS_ERROR: Exception | None = exc
-else:
-    _REQUESTS_ERROR = None
+from .http_utils import ensure_requests, post_json
 
 _GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -53,10 +46,8 @@ class GeminiAdapter:
         self._model_id = self.model_cfg.model_id
         self._default_runtime = self.model_cfg.runtime or {}
 
-        if not _HAS_GENAI and requests is None:  # pragma: no cover - guard
-            raise AdapterUnavailable(
-                "google-genai package or requests library is required for the Gemini adapter."
-            ) from _REQUESTS_ERROR
+        if not _HAS_GENAI:
+            ensure_requests()
 
         if _HAS_GENAI:
             try:
@@ -117,35 +108,24 @@ class GeminiAdapter:
         params: Dict[str, object],
         timeout_s: float,
     ) -> str:
-        if requests is None:  # pragma: no cover - guard
-            raise AdapterUnavailable("requests library is required for HTTP fallback.")
-
         url = _GEMINI_API_URL.format(model=self._model_id)
         headers = {"Content-Type": "application/json"}
         contents = _build_contents(messages=messages, system_prompt=system_prompt)
         payload: Dict[str, object] = {"contents": contents}
         payload.update(params)
         try:
-            response = requests.post(
+            data = post_json(
                 url,
+                payload,
                 headers=headers,
                 params={"key": self._api_key},
-                data=json.dumps(payload),
-                timeout=timeout_s,
+                timeout_s=timeout_s,
             )
-        except requests.exceptions.RequestException as exc:  # pragma: no cover - network error
-            raise AdapterUnavailable(str(exc)) from exc
+        except (AdapterAuthError, AdapterRateLimit, AdapterServerError, AdapterUnavailable) as exc:
+            raise exc
+        except Exception as exc:  # pragma: no cover - defensive
+            raise AdapterUnavailable(f"Gemini HTTP request failed: {exc}") from exc
 
-        if response.status_code == 401:
-            raise AdapterAuthError(response.text)
-        if response.status_code == 429:
-            raise AdapterRateLimit(response.text)
-        if 500 <= response.status_code < 600:
-            raise AdapterServerError(response.text)
-        if not response.ok:
-            raise AdapterUnavailable(response.text)
-
-        data = response.json()
         text = _extract_text_from_http(data)
         if not text:
             raise AdapterUnavailable("Gemini API returned empty content.")

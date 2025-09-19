@@ -6,14 +6,6 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List
 
-try:  # pragma: no cover - optional dependency
-    import requests
-except ImportError as exc:  # pragma: no cover
-    requests = None  # type: ignore
-    _REQUESTS_ERROR: Exception | None = exc
-else:
-    _REQUESTS_ERROR = None
-
 from saber.config_loader import ModelCfg
 
 from .base import (
@@ -25,6 +17,7 @@ from .base import (
     ModelAdapter,
     build_messages,
 )
+from .http_utils import ensure_requests, map_http_error
 
 _OPENAI_PATH = "/v1/chat/completions"
 _FALLBACK_PATH = "/chat/completions"
@@ -52,8 +45,8 @@ class LMStudioAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
-        if requests is None:  # pragma: no cover - guard
-            raise AdapterUnavailable("requests library is required for the LM Studio adapter.") from _REQUESTS_ERROR
+        ensure_requests()
+        import requests  # type: ignore  # noqa: WPS433
         messages = build_messages(system=system, persona_system=persona_system, history=history)
         payload = self._build_payload(messages=messages, runtime=runtime)
 
@@ -110,12 +103,16 @@ class LMStudioAdapter:
         url = f"{self._base_url.rstrip('/')}{path}"
         if requests is None:  # pragma: no cover - guard
             return None
+        import requests  # type: ignore  # noqa: WPS433
+
         try:
             response = requests.post(url, json=payload, timeout=timeout_s)
         except requests.exceptions.RequestException:
             return None
         if response.status_code == 404:
             return None
+        if response.status_code >= 400:
+            raise map_http_error(response.status_code, response.text)
         return response
 
 

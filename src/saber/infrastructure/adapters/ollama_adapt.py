@@ -17,20 +17,12 @@ from .base import (
     ModelAdapter,
     build_messages,
 )
+from .http_utils import ensure_requests, post_json
 
 try:  # pragma: no cover - optional dependency
     import ollama  # type: ignore
 except ImportError:  # pragma: no cover
     ollama = None  # type: ignore
-
-try:  # pragma: no cover - optional dependency
-    import requests
-except ImportError as exc:  # pragma: no cover
-    requests = None  # type: ignore
-    _REQUESTS_ERROR: Exception | None = exc
-else:
-    _REQUESTS_ERROR = None
-
 
 @dataclass
 class OllamaAdapter:
@@ -43,10 +35,8 @@ class OllamaAdapter:
         self._model_id = self.model_cfg.model_id
         self._default_runtime = self.model_cfg.runtime or {}
         self._base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        if requests is None and ollama is None:  # pragma: no cover - guard
-            raise AdapterUnavailable(
-                "Either the 'ollama' Python package or 'requests' library is required for the Ollama adapter."
-            ) from _REQUESTS_ERROR
+        if ollama is None:
+            ensure_requests()
 
     # ------------------------------------------------------------------
     def send(
@@ -79,9 +69,6 @@ class OllamaAdapter:
                 raise AdapterUnavailable("Unexpected Ollama client error.") from exc
             return _extract_text_from_sdk(response)
 
-        if requests is None:  # pragma: no cover - guard
-            raise AdapterUnavailable("requests library is required for Ollama HTTP fallback.")
-
         url = f"{self._base_url.rstrip('/')}/api/chat"
         payload = {
             "model": self._model_id,
@@ -90,20 +77,13 @@ class OllamaAdapter:
             "stream": False,
         }
         try:
-            response = requests.post(url, json=payload, timeout=timeout_s)
-        except requests.exceptions.RequestException as exc:  # pragma: no cover - network
-            raise AdapterUnavailable(str(exc)) from exc
+            data = post_json(url, payload, timeout_s=timeout_s)
+        except AdapterUnavailable as exc:
+            # Provide nicer message if the server returns structured error
+            raise AdapterUnavailable(f"Ollama request failed: {exc}") from exc
+        except Exception as exc:  # pragma: no cover - propagate mapped errors
+            raise exc
 
-        if response.status_code == 401:
-            raise AdapterAuthError(response.text)
-        if response.status_code == 429:
-            raise AdapterRateLimit(response.text)
-        if 500 <= response.status_code < 600:
-            raise AdapterServerError(response.text)
-        if not response.ok:
-            raise AdapterUnavailable(response.text)
-
-        data = response.json()
         text = _extract_text_from_http(data)
         if not text:
             raise AdapterUnavailable("Ollama response did not include message content.")
