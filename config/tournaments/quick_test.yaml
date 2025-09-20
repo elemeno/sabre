@@ -1,7 +1,7 @@
 name: "Quick Test"
 description: "Single match run for development/debugging"
 models:
-  - "llama2-7b"
+  - "llama-3.3-70b"
 exploits:
   - "secret_extraction"
 settings:
