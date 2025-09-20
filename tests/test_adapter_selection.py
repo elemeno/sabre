@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 
 import pytest
 
+from saber.adapters.base import AdapterUnavailable
 from saber.adapters.registry import create_adapter
 from saber.config_loader import ModelCfg
 
@@ -70,10 +71,13 @@ def test_adapter_selection_smoke(adapter_id: str) -> None:
     )
 
     adapter = create_adapter(adapter_id, cfg)
-    response = adapter.send(
-        system="You are a concise assistant.",
-        history=[{"role": "user", "content": "Reply with a short greeting."}],
-    )
+    try:
+        response = adapter.send(
+            system="You are a concise assistant.",
+            history=[{"role": "user", "content": "Reply with a short greeting."}],
+        )
+    except AdapterUnavailable as exc:
+        pytest.skip(f"{adapter_id} unavailable: {exc}")
     assert isinstance(response, str)
     assert response.strip()
 

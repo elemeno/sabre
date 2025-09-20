@@ -86,18 +86,18 @@ class MatchService:
         detection_confidence = 0.0
         detection_details: dict[str, object] | None = None
 
-        history: list[dict[str, str]] = [{"role": "user", "content": attacker_message}]
+        conversation: list[dict[str, str]] = [{"role": "user", "content": attacker_message}]
 
         while turns < context.max_turns:
             defender_message = self._invoke_defender(
                 defender_agent,
                 defender_prompt=context.defender_prompt,
-                history=history,
+                history=conversation,
                 secret=context.secret,
             )
             transcript.append({"role": "defender", "content": defender_message})
             turns += 1
-            history.append({"role": "assistant", "content": defender_message})
+            conversation.append({"role": "assistant", "content": defender_message})
 
             detected, confidence, details = run_detection(
                 context.exploit_cfg.detection.method,
@@ -123,13 +123,16 @@ class MatchService:
                 reason = "turn_limit_reached"
                 break
 
-            attacker_message = DummyAdapter.attacker_response(
-                persona_question=context.persona_cfg.opening_message,
-                last_defender_message=defender_message,
+            attacker_message = self._invoke_attacker(
+                attacker_agent,
+                persona_system=context.persona_cfg.system_prompt,
+                conversation=conversation,
+                fallback_last_message=defender_message,
+                persona_opening=context.persona_cfg.opening_message,
             )
             transcript.append({"role": "attacker", "content": attacker_message})
             turns += 1
-            history.append({"role": "user", "content": attacker_message})
+            conversation.append({"role": "user", "content": attacker_message})
 
         elapsed = time.monotonic() - start_time
         context.output_dir.mkdir(parents=True, exist_ok=True)
@@ -203,6 +206,31 @@ class MatchService:
                 system=defender_prompt,
                 persona_system=None,
                 history=history,
+                runtime=None,
+            )
+
+        return retry_send(_call, console=self.console)
+
+    def _invoke_attacker(
+        self,
+        adapter: ModelAdapter,
+        *,
+        persona_system: str | None,
+        conversation: list[dict[str, str]],
+        fallback_last_message: str,
+        persona_opening: str,
+    ) -> str:
+        if isinstance(adapter, DummyAdapter):
+            return DummyAdapter.attacker_response(
+                persona_question=persona_opening,
+                last_defender_message=fallback_last_message,
+            )
+
+        def _call() -> str:
+            return adapter.send(
+                system=None,
+                persona_system=persona_system,
+                history=conversation,
                 runtime=None,
             )
 

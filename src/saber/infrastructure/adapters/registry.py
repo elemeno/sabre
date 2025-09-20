@@ -9,6 +9,7 @@ from saber.config_loader import ModelCfg
 
 from .anthropic_adapt import AnthropicAdapter
 from .base import AdapterUnavailable, ModelAdapter
+from .dummy import DummyAdapter
 from .gemini_adapt import GeminiAdapter
 from .lmstudio_adapt import LMStudioAdapter
 from .ollama_adapt import OllamaAdapter
@@ -47,6 +48,7 @@ REGISTRY: Dict[str, Callable[[ModelCfg], ModelAdapter]] = {
     "gemini": lambda cfg: GeminiAdapter(cfg),
     "ollama": lambda cfg: OllamaAdapter(cfg),
     "lmstudio": lambda cfg: LMStudioAdapter(cfg),
+    "dummy": lambda cfg: DummyAdapter(),
 }
 
 

@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from saber.config_loader import (
     ConfigError,
@@ -64,11 +65,11 @@ def test_tournament_model_reference_must_exist(tmp_path: Path) -> None:
     """Tournament referencing unknown model raises ConfigError."""
     config_dir = _copy_config_tree(tmp_path)
     tournament_file = config_dir / "tournaments" / "full_3x3.yaml"
-    text = tournament_file.read_text(encoding="utf-8")
-    tournament_file.write_text(
-        text.replace("- \"zephyr-7b\"", "- \"ghost-model\""),
-        encoding="utf-8",
-    )
+    import yaml
+
+    data = yaml.safe_load(tournament_file.read_text(encoding="utf-8"))
+    data["models"][0] = "ghost-model"
+    tournament_file.write_text(yaml.safe_dump(data), encoding="utf-8")
 
     models, personas, exploits, tournaments = collect_configs(config_dir)
     with pytest.raises(ConfigError) as excinfo:

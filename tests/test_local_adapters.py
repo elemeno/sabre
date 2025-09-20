@@ -13,7 +13,7 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover
     requests = None  # type: ignore
 
-from saber.adapters.base import build_messages
+from saber.adapters.base import AdapterUnavailable, build_messages
 from saber.adapters.registry import create_adapter
 from saber.config_loader import ModelCfg
 
@@ -56,10 +56,13 @@ def test_ollama_adapter_smoke() -> None:
         notes=None,
     )
     adapter = create_adapter("ollama", cfg)
-    response = adapter.send(
-        system="You are brief.",
-        history=[{"role": "user", "content": "Say hi in one word."}],
-    )
+    try:
+        response = adapter.send(
+            system="You are brief.",
+            history=[{"role": "user", "content": "Say hi in one word."}],
+        )
+    except AdapterUnavailable as exc:
+        pytest.skip(f"Ollama unavailable: {exc}")
     assert isinstance(response, str)
     assert response.strip()
 
@@ -80,9 +83,12 @@ def test_lmstudio_adapter_smoke() -> None:
         notes=None,
     )
     adapter = create_adapter("lmstudio", cfg)
-    response = adapter.send(
-        system="You are brief.",
-        history=[{"role": "user", "content": "Say hi in one word."}],
-    )
+    try:
+        response = adapter.send(
+            system="You are brief.",
+            history=[{"role": "user", "content": "Say hi in one word."}],
+        )
+    except AdapterUnavailable as exc:
+        pytest.skip(f"LM Studio unavailable: {exc}")
     assert isinstance(response, str)
     assert response.strip()
