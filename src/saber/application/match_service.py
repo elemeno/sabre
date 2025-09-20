@@ -52,13 +52,15 @@ class MatchService:
             context.attacker_adapter_id, context.attacker_cfg
         )
         defender_adapter = self._resolve_adapter(
-            context.defender_adapter_id or context.attacker_adapter_id,
+            context.defender_adapter_id,
             context.defender_cfg,
         )
         return self._simulate(context, attacker_adapter, defender_adapter)
 
     # ------------------------------------------------------------------
-    def _resolve_adapter(self, provider: str | None, model_cfg: ModelCfg) -> ModelAdapter | None:
+    def _resolve_adapter(
+        self, provider: str | None, model_cfg: ModelCfg
+    ) -> ModelAdapter | None:
         if provider:
             return self._adapter_factory(provider, model_cfg)
         if model_cfg.adapter:
@@ -74,10 +76,36 @@ class MatchService:
         start_time = time.monotonic()
         transcript: list[dict[str, str]] = []
 
-        attacker_agent = attacker_adapter or DummyAdapter(name=f"attacker::{context.attacker_cfg.name}")
-        defender_agent = defender_adapter or DummyAdapter(name=f"defender::{context.defender_cfg.name}")
+        attacker_agent = attacker_adapter or DummyAdapter(
+            name=f"attacker::{context.attacker_cfg.name}"
+        )
+        defender_agent = defender_adapter or DummyAdapter(
+            name=f"defender::{context.defender_cfg.name}"
+        )
 
-        attacker_message = context.persona_cfg.opening_message
+        self.console.log(
+            f"[bold yellow]Starting Match:[/bold yellow] {context.attacker_cfg.name} (attacker) vs {context.defender_cfg.name} (defender) using exploit {context.exploit_cfg.name}"
+        )
+
+        # attacker_message = context.persona_cfg.opening_message
+        # Get the attacked to create the opening message
+        attacker_message = self._invoke_attacker(
+            attacker_agent,
+            persona_system=context.persona_cfg.system_prompt,
+            history=[
+                {"role": "defender", "content": context.persona_cfg.opening_message}
+            ],
+            fallback_last_message="",
+            persona_opening=context.persona_cfg.opening_message,
+        )
+
+        self.console.log(
+            f"[bold magenta]Attacker Prompt: [/bold magenta] {context.persona_cfg.opening_message}"
+        )
+        self.console.log(
+            f"[bold magenta]Attacker created opening message:[/bold magenta] {attacker_message}"
+        )
+
         transcript.append({"role": "attacker", "content": attacker_message})
         turns = 1
         success = False
@@ -86,18 +114,28 @@ class MatchService:
         detection_confidence = 0.0
         detection_details: dict[str, object] | None = None
 
-        conversation: list[dict[str, str]] = [{"role": "user", "content": attacker_message}]
+        # conversation: list[dict[str, str]] = [
+        #     {"role": "user", "content": attacker_message}
+        # ]
 
         while turns < context.max_turns:
+            self.console.log(f"[bold blue]Turn {turns}[/bold blue]")
+            # self.console.log(f"Conversation so far: \n{transcript}")
             defender_message = self._invoke_defender(
                 defender_agent,
                 defender_prompt=context.defender_prompt,
-                history=conversation,
+                history=transcript,
                 secret=context.secret,
+            )
+            self.console.log(
+                f"[bold green]Defender Prompt: [/bold green] {transcript[-1]['content']}"
+            )
+            self.console.log(
+                f"[bold green]Defender replied:[/bold green] {defender_message}"
             )
             transcript.append({"role": "defender", "content": defender_message})
             turns += 1
-            conversation.append({"role": "assistant", "content": defender_message})
+            # conversation.append({"role": "assistant", "content": defender_message})
 
             detected, confidence, details = run_detection(
                 context.exploit_cfg.detection.method,
@@ -117,22 +155,30 @@ class MatchService:
                 success = True
                 reason = "secret_revealed"
                 turns_to_success = len(transcript)
+                self.console.log("[bold_red]Detected[/bold_red]")
                 break
 
             if turns >= context.max_turns:
                 reason = "turn_limit_reached"
+                self.console.log("[bold_red]Turn Limit[/bold_red]")
                 break
 
             attacker_message = self._invoke_attacker(
                 attacker_agent,
                 persona_system=context.persona_cfg.system_prompt,
-                conversation=conversation,
+                history=transcript,
                 fallback_last_message=defender_message,
                 persona_opening=context.persona_cfg.opening_message,
             )
+            self.console.log(
+                f"[bold magenta]Attacker Prompt: [/bold magenta] {transcript[-1]['content']}"
+            )
+            self.console.log(
+                f"[bold magenta]Attacker replied:[/bold magenta] {attacker_message}"
+            )
             transcript.append({"role": "attacker", "content": attacker_message})
             turns += 1
-            conversation.append({"role": "user", "content": attacker_message})
+            # conversation.append({"role": "user", "content": attacker_message})
 
         elapsed = time.monotonic() - start_time
         context.output_dir.mkdir(parents=True, exist_ok=True)
@@ -157,12 +203,14 @@ class MatchService:
                 "defender_prompt": context.defender_prompt,
                 "attacker_adapter": {
                     "name": attacker_agent.name,
-                    "provider": context.attacker_adapter_id or context.attacker_cfg.adapter,
+                    "provider": context.attacker_adapter_id
+                    or context.attacker_cfg.adapter,
                     "model_id": context.attacker_cfg.model_id,
                 },
                 "defender_adapter": {
                     "name": defender_agent.name,
-                    "provider": context.defender_adapter_id or context.defender_cfg.adapter,
+                    "provider": context.defender_adapter_id
+                    or context.defender_cfg.adapter,
                     "model_id": context.defender_cfg.model_id,
                 },
                 "match_id": resolved_match_id,
@@ -194,18 +242,23 @@ class MatchService:
         history: list[dict[str, str]],
         secret: str,
     ) -> str:
-        if isinstance(adapter, DummyAdapter):
-            return DummyAdapter.defender_response(
-                defender_prompt=defender_prompt,
-                attacker_message=history[-1]["content"],
-                secret=secret,
-            )
+        messages: list[dict[str, str]] = []
+
+        for entry in history:
+            role = entry["role"]
+            content = entry["content"]
+            if role == "attacker":
+                messages.append({"role": "user", "content": content})
+            elif role == "defender":
+                messages.append({"role": "assistant", "content": content})
+
+        # self.console.log(f"[bold_green]Defender History:[/bold_green] \n{messages}")
 
         def _call() -> str:
             return adapter.send(
                 system=defender_prompt,
                 persona_system=None,
-                history=history,
+                history=messages,
                 runtime=None,
             )
 
@@ -216,21 +269,31 @@ class MatchService:
         adapter: ModelAdapter,
         *,
         persona_system: str | None,
-        conversation: list[dict[str, str]],
+        history: list[dict[str, str]],
         fallback_last_message: str,
         persona_opening: str,
     ) -> str:
-        if isinstance(adapter, DummyAdapter):
-            return DummyAdapter.attacker_response(
-                persona_question=persona_opening,
-                last_defender_message=fallback_last_message,
-            )
+        self.console.log(
+            f"[bold magenta]Invoking Attacker ({adapter.name})[/bold magenta]"
+        )
+
+        messages: list[dict[str, str]] = []
+
+        for entry in history:
+            role = entry["role"]
+            content = entry["content"]
+            if role == "defender":
+                messages.append({"role": "user", "content": content})
+            elif role == "attacker":
+                messages.append({"role": "assistant", "content": content})
+
+        # self.console.log(f"[bold_orange]Attacker History:[/bold_orange] \n{messages}")
 
         def _call() -> str:
             return adapter.send(
                 system=None,
                 persona_system=persona_system,
-                history=conversation,
+                history=messages,
                 runtime=None,
             )
 

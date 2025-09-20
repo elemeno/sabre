@@ -1,8 +1,8 @@
 name: "MVP Basic"
 description: "Tiny smoke-test tournament: 2 models x 1 exploit"
 models:
-  - "gpt-oss-20b"
-  - "gemma-3-27b"
+  - "qwen3-4b-thinking-2507"
+  - "llama-3.3-70b"
 exploits:
   - "secret_extraction"
 settings:

@@ -21,6 +21,7 @@ from .http_utils import ensure_requests, post_json
 
 try:  # pragma: no cover - optional dependency
     from openai import OpenAI
+
     _HAS_OPENAI = True
 except ImportError:  # pragma: no cover
     OpenAI = None  # type: ignore
@@ -40,7 +41,9 @@ class LMStudioAdapter:
     def __post_init__(self) -> None:
         self._model_id = self.model_cfg.model_id
         self._default_runtime = self.model_cfg.runtime or {}
-        self._base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234").rstrip("/")
+        self._base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234").rstrip(
+            "/"
+        )
         self._api_key = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
         self._client = None
         if _HAS_OPENAI:
@@ -50,7 +53,9 @@ class LMStudioAdapter:
                     base_url = f"{base_url}/v1"
                 self._client = OpenAI(api_key=self._api_key, base_url=base_url)
             except Exception as exc:  # pragma: no cover - defensive
-                raise AdapterUnavailable("Failed to initialise LM Studio OpenAI client.") from exc
+                raise AdapterUnavailable(
+                    "Failed to initialise LM Studio OpenAI client."
+                ) from exc
 
     # ------------------------------------------------------------------
     def send(
@@ -62,7 +67,9 @@ class LMStudioAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
-        messages = build_messages(system=system, persona_system=persona_system, history=history)
+        messages = build_messages(
+            system=system, persona_system=persona_system, history=history
+        )
         payload = self._build_payload(messages=messages, runtime=runtime)
 
         if self._client is not None:
@@ -71,7 +78,9 @@ class LMStudioAdapter:
         return self._send_via_http(payload, timeout_s)
 
     # ------------------------------------------------------------------
-    def _build_payload(self, messages: List[Message], runtime: Dict | None) -> Dict[str, object]:
+    def _build_payload(
+        self, messages: List[Message], runtime: Dict | None
+    ) -> Dict[str, object]:
         runtime_params = self._runtime_params(runtime)
         payload: Dict[str, object] = {
             "model": self._model_id,
@@ -94,7 +103,9 @@ class LMStudioAdapter:
             params["top_p"] = float(merged["top_p"])
         return params
 
-    def _send_via_openai_client(self, payload: Dict[str, object], timeout_s: float) -> str:
+    def _send_via_openai_client(
+        self, payload: Dict[str, object], timeout_s: float
+    ) -> str:
         try:
             completion = self._client.chat.completions.create(  # type: ignore[union-attr]
                 model=self._model_id,
@@ -115,7 +126,9 @@ class LMStudioAdapter:
         message = choices[0].message
         content = getattr(message, "content", "")
         if not content:
-            raise AdapterUnavailable("LM Studio response content is empty.")
+            raise AdapterUnavailable(
+                f"LM Studio response content is empty.\nReturned: {completion}"
+            )
         return content.strip()
 
     def _send_via_http(self, payload: Dict[str, object], timeout_s: float) -> str:

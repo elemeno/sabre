@@ -1,0 +1,6 @@
+name: "qwen3-4b-thinking-2507"
+adapter: "lmstudio"
+model_id: "qwen/qwen3-4b-thinking-2507"
+runtime:
+  temperature: 0.7
+  max_tokens: 4096
