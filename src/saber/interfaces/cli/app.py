@@ -23,6 +23,7 @@ from saber.config_loader import (
 )
 from saber.adapters import AdapterUnavailable
 from saber.tournament import MatchSpec, TournamentController
+from saber.utils.paths import resolve_timestamped_output_dir
 
 app = typer.Typer(help="CLI for Saber configuration management and match simulation.")
 console = Console()
@@ -174,6 +175,8 @@ def run_match(
         raise typer.Exit(code=1)
 
     app_context = ApplicationContext.create(console=console)
+    final_output_dir = resolve_timestamped_output_dir(output_dir)
+    console.print(f"[green]Writing outputs to: {final_output_dir}[/green]")
     context = MatchContext(
         attacker_cfg=attacker_cfg,
         defender_cfg=defender_cfg,
@@ -183,7 +186,7 @@ def run_match(
         secret=secret,
         secret_index=secret_index,
         max_turns=max_turns,
-        output_dir=output_dir,
+        output_dir=final_output_dir,
         attacker_adapter_id=chosen_adapter,
         defender_adapter_id=chosen_adapter,
     )
@@ -250,7 +253,8 @@ def run_tournament(
     effective_output_dir = output_dir or Path(tournament_cfg.settings.output_dir)
     if not effective_output_dir.is_absolute():
         effective_output_dir = (config_dir / effective_output_dir).resolve()
-    effective_output_dir.mkdir(parents=True, exist_ok=True)
+
+    final_output_dir: Path | None = None
 
     app_context = ApplicationContext.create(console=console)
 
@@ -298,8 +302,15 @@ def run_tournament(
             console.print(f"  ... ({len(schedule) - 3} more matches)")
         return
 
+    if not dry_run:
+        final_output_dir = resolve_timestamped_output_dir(effective_output_dir)
+        console.print(f"[green]Writing outputs to: {final_output_dir}[/green]")
+
     try:
-        result = controller.run(output_dir=effective_output_dir, max_workers=max_workers)
+        result = controller.run(
+            output_dir=final_output_dir or effective_output_dir,
+            max_workers=max_workers,
+        )
     except NotImplementedError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
