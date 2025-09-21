@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from saber.adapters.base import AdapterEmptyResponse
-from saber.adapters.dummy import DummyAdapter
-from saber.adapters.util import ensure_non_empty_reply, retry_send
-from saber.application.match_service import MatchContext, MatchService
-from saber.domain.config import DetectionCfg, ExploitCfg, ModelCfg, PersonaCfg
+from sabre.adapters.base import AdapterEmptyResponse
+from sabre.adapters.dummy import DummyAdapter
+from sabre.adapters.util import ensure_non_empty_reply, retry_send
+from sabre.application.match_service import MatchContext, MatchService
+from sabre.domain.config import DetectionCfg, ExploitCfg, ModelCfg, PersonaCfg
 
 
 def test_ensure_non_empty_reply_raises() -> None:

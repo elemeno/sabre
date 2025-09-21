@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from saber.utils import redact_possible_secrets
+from sabre.utils import redact_possible_secrets
 
 
 def test_redact_masks_aws_access_key() -> None:

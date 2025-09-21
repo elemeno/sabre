@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from saber.config_loader import (
+from sabre.config_loader import (
     ConfigError,
     collect_configs,
     load_tournament,

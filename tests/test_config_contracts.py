@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from saber.config_loader import (
+from sabre.config_loader import (
     ConfigError,
     ModelCfg,
     PersonaCfg,

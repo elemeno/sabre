@@ -6,9 +6,9 @@ import textwrap
 
 import pytest
 
-from saber.domain.config import ModelCfg
-from saber.infrastructure.adapters.base import AdapterValidationError
-from saber.infrastructure.adapters.registry import create_adapter
+from sabre.domain.config import ModelCfg
+from sabre.infrastructure.adapters.base import AdapterValidationError
+from sabre.infrastructure.adapters.registry import create_adapter
 
 
 @pytest.fixture

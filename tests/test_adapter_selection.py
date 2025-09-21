@@ -9,9 +9,9 @@ from urllib.parse import urljoin
 
 import pytest
 
-from saber.adapters.base import AdapterUnavailable
-from saber.adapters.registry import create_adapter
-from saber.config_loader import ModelCfg
+from sabre.adapters.base import AdapterUnavailable
+from sabre.adapters.registry import create_adapter
+from sabre.config_loader import ModelCfg
 
 ADAPTERS = [
     "openai",

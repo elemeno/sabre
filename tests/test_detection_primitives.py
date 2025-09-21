@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from saber.detectors import (
+from sabre.detectors import (
     canonicalize,
     detect_exact_match,
     detect_fuzzy,

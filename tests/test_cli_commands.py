@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from saber.cli import app
+from sabre.cli import app
 
 try:  # optional dependency for local adapters
     import requests

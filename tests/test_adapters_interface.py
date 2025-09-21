@@ -13,9 +13,9 @@ try:  # pragma: no cover - optional
 except Exception:  # pragma: no cover - ignore missing
     requests = None  # type: ignore
 
-from saber.adapters import DummyAdapter, ModelAdapter, create_adapter
-from saber.adapters.base import AdapterAuthError, AdapterUnavailable
-from saber.config_loader import ModelCfg
+from sabre.adapters import DummyAdapter, ModelAdapter, create_adapter
+from sabre.adapters.base import AdapterAuthError, AdapterUnavailable
+from sabre.config_loader import ModelCfg
 
 
 def _model_cfg(adapter_id: str) -> ModelCfg:

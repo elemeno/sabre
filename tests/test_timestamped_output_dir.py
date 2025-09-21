@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import time
 
-from saber.utils import paths
+from sabre.utils import paths
 
 
 def test_resolve_timestamped_output_dir_creates_directory(monkeypatch, tmp_path):

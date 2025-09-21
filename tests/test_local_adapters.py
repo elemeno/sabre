@@ -13,9 +13,9 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover
     requests = None  # type: ignore
 
-from saber.adapters.base import AdapterUnavailable, build_messages
-from saber.adapters.registry import create_adapter
-from saber.config_loader import ModelCfg
+from sabre.adapters.base import AdapterUnavailable, build_messages
+from sabre.adapters.registry import create_adapter
+from sabre.config_loader import ModelCfg
 
 
 def test_build_messages_combines_system_and_persona() -> None:

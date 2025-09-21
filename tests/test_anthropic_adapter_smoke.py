@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from saber.adapters.registry import create_adapter
-from saber.config_loader import ModelCfg
+from sabre.adapters.registry import create_adapter
+from sabre.config_loader import ModelCfg
 
 
 @pytest.mark.skipif(

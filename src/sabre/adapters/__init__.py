@@ -1,0 +1,26 @@
+"""Compatibility package mapping to infrastructure adapters."""
+
+from __future__ import annotations
+
+import importlib
+import sys
+from typing import Dict
+
+from sabre.infrastructure.adapters import *  # noqa: F401,F403
+
+_MODULE_ALIASES: Dict[str, str] = {
+    "base": "sabre.infrastructure.adapters.base",
+    "registry": "sabre.infrastructure.adapters.registry",
+    "util": "sabre.infrastructure.adapters.util",
+    "anthropic_adapt": "sabre.infrastructure.adapters.anthropic_adapt",
+    "gemini_adapt": "sabre.infrastructure.adapters.gemini_adapt",
+    "lmstudio_adapt": "sabre.infrastructure.adapters.lmstudio_adapt",
+    "ollama_adapt": "sabre.infrastructure.adapters.ollama_adapt",
+    "openai_adapt": "sabre.infrastructure.adapters.openai_adapt",
+    "dummy": "sabre.infrastructure.adapters.dummy",
+}
+
+for alias, target in _MODULE_ALIASES.items():
+    sys.modules.setdefault(f"{__name__}.{alias}", importlib.import_module(target))
+
+__all__ = tuple(globals().keys())  # re-export infrastructure symbols

@@ -630,7 +630,7 @@ wheels = [
 ]
 
 [[package]]
-name = "saber"
+name = "sabre"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

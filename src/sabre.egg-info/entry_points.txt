@@ -1,0 +1,3 @@
+[console_scripts]
+saber = sabre.cli:app
+sabre = sabre.cli:app
