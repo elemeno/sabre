@@ -1,5 +1,8 @@
 # SABRE: Systematic Adversarial Benchmark for Robustness Evaluation
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Status: Research Preview](https://img.shields.io/badge/Status-Research%20Preview-orange)](https://github.com/elemeno/sabre)
+
 SABRE is a research-grade harness for running structured, repeatable adversarial evaluations against large language models. It pairs configurable attacker personas with defender models across curated exploit scenarios, producing quantitative robustness scorecards and match transcripts that teams can analyse over time.
 
 ## Why SABRE

@@ -252,7 +252,7 @@ def run_tournament(
 
     effective_output_dir = output_dir or Path(tournament_cfg.settings.output_dir)
     if not effective_output_dir.is_absolute():
-        effective_output_dir = (config_dir / effective_output_dir).resolve()
+        effective_output_dir = effective_output_dir.resolve()
 
     final_output_dir: Path | None = None
 
