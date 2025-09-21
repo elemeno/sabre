@@ -1,0 +1,9 @@
+pyyaml
+jsonschema
+typer>=0.19.1
+rich
+rapidfuzz
+openai>=1.108.1
+
+[dev]
+pytest

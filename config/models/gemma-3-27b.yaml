@@ -1,7 +1,7 @@
 name: "gemma-3-27b"
 adapter: "lmstudio"
 model_id: "google/gemma-3-27b"
-preprocess: "hooks.gemma_prompt_prep:preprocess"  # appends Gemma-friendly system directive if missing
+preprocess: "hooks.gemma_prompt_prep:preprocess" # appends Gemma-friendly system directive if missing
 runtime:
   temperature: 0.7
-  max_tokens: 4096
+  max_tokens: -1

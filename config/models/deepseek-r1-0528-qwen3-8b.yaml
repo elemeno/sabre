@@ -3,4 +3,4 @@ adapter: "lmstudio"
 model_id: "deepseek/deepseek-r1-0528-qwen3-8b"
 runtime:
   temperature: 0.7
-  max_tokens: 4096
+  max_tokens: -1
