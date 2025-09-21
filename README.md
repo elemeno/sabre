@@ -286,3 +286,5 @@ All adapters honour runtime parameters such as `temperature`, `top_p`, and token
 2. **Execute:** `MatchService` wraps `ModelAdapter.send` calls with `retry_send`, capturing retries and transcripts.
 3. **Persist:** Match payloads are written to `matches/` with adapter metadata (provider, model id, runtime options).
 4. **Extend:** Implement `ModelAdapter.send`, reuse `http_utils.post_json`, and register the factory in `saber.infrastructure.adapters.registry` when adding new providers.
+
+If a provider returns an empty string after postprocessing, Saber automatically retries once more. Persistent empty responses mark the turn as `empty_response` in the match payload while the tournament continues.
