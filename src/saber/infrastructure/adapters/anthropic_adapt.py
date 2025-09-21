@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 try:  # pragma: no cover - optional dependency
@@ -26,6 +26,12 @@ from .base import (
     build_messages,
     merge_system_prompts,
 )
+from saber.utils.hooks import (
+    PostprocessFn,
+    PreprocessFn,
+    run_postprocess,
+    run_preprocess,
+)
 
 
 @dataclass
@@ -33,6 +39,8 @@ class AnthropicAdapter:
     """Adapter that proxies requests to the Anthropic Messages API."""
 
     model_cfg: ModelCfg
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
     name: str = "anthropic"
 
     def __post_init__(self) -> None:
@@ -63,6 +71,13 @@ class AnthropicAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
+        )
         messages = build_messages(system=None, persona_system=None, history=history)
         system_prompt = merge_system_prompts(system, persona_system)
         params = self._runtime_params(runtime)
@@ -95,7 +110,7 @@ class AnthropicAdapter:
         text = _extract_text(response)
         if not text:
             raise AdapterUnavailable("Anthropic API returned empty response content.")
-        return text
+        return run_postprocess(self.postprocess_fn, text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

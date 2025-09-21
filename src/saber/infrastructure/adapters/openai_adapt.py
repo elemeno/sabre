@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 try:  # pragma: no cover - import guard
@@ -34,6 +34,12 @@ from .base import (
     ModelAdapter,
     build_messages,
 )
+from saber.utils.hooks import (
+    PostprocessFn,
+    PreprocessFn,
+    run_postprocess,
+    run_preprocess,
+)
 
 
 def _messages_for_responses(messages: List[Message]) -> List[Dict[str, object]]:
@@ -51,6 +57,8 @@ class OpenAIAdapter:
     """Adapter that sends chat interactions to the OpenAI Responses API."""
 
     model_cfg: ModelCfg
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
     name: str = "openai"
 
     def __post_init__(self) -> None:
@@ -86,14 +94,22 @@ class OpenAIAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
+        )
         messages = build_messages(system=system, persona_system=persona_system, history=history)
         params = self._runtime_params(runtime)
         try:
-            return self._call_responses(messages=messages, params=params, timeout_s=timeout_s)
+            text = self._call_responses(messages=messages, params=params, timeout_s=timeout_s)
         except (AdapterAuthError, AdapterRateLimit, AdapterValidationError, AdapterServerError, AdapterUnavailable):
             raise
         except Exception as exc:  # pragma: no cover - fallback
             raise AdapterUnavailable("Unexpected error while calling OpenAI Responses API.") from exc
+        return run_postprocess(self.postprocess_fn, text)
 
     # ------------------------------------------------------------------
     def _call_responses(

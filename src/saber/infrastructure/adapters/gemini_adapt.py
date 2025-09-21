@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 from saber.config_loader import ModelCfg
@@ -17,6 +17,12 @@ from .base import (
     ModelAdapter,
     build_messages,
     merge_system_prompts,
+)
+from saber.utils.hooks import (
+    PostprocessFn,
+    PreprocessFn,
+    run_postprocess,
+    run_preprocess,
 )
 
 try:  # pragma: no cover - optional dependency
@@ -36,6 +42,8 @@ class GeminiAdapter:
     """Adapter that communicates with the Gemini API."""
 
     model_cfg: ModelCfg
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
     name: str = "gemini"
 
     def __post_init__(self) -> None:
@@ -67,6 +75,13 @@ class GeminiAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
+        )
         messages = build_messages(system=None, persona_system=None, history=history)
         system_prompt = merge_system_prompts(system, persona_system)
         params = self._runtime_params(runtime)
@@ -98,7 +113,7 @@ class GeminiAdapter:
         text = _extract_text_from_sdk(response)
         if not text:
             raise AdapterUnavailable("Gemini API returned empty content.")
-        return text
+        return run_postprocess(self.postprocess_fn, text)
 
     def _send_via_http(
         self,
@@ -129,7 +144,7 @@ class GeminiAdapter:
         text = _extract_text_from_http(data)
         if not text:
             raise AdapterUnavailable("Gemini API returned empty content.")
-        return text
+        return run_postprocess(self.postprocess_fn, text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

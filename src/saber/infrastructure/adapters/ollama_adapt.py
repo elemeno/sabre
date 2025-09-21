@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 from saber.config_loader import ModelCfg
@@ -18,6 +18,12 @@ from .base import (
     build_messages,
 )
 from .http_utils import ensure_requests, post_json
+from saber.utils.hooks import (
+    PostprocessFn,
+    PreprocessFn,
+    run_postprocess,
+    run_preprocess,
+)
 
 try:  # pragma: no cover - optional dependency
     import ollama  # type: ignore
@@ -29,6 +35,8 @@ class OllamaAdapter:
     """Adapter for local Ollama servers."""
 
     model_cfg: ModelCfg
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
     name: str = "ollama"
 
     def __post_init__(self) -> None:
@@ -48,6 +56,13 @@ class OllamaAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
+        )
         messages = build_messages(system=system, persona_system=persona_system, history=history)
         payload_messages = [{"role": msg["role"], "content": msg["content"]} for msg in messages]
         options = self._runtime_params(runtime)
@@ -67,7 +82,9 @@ class OllamaAdapter:
                 raise AdapterUnavailable(str(exc)) from exc
             except Exception as exc:  # pragma: no cover - defensive
                 raise AdapterUnavailable("Unexpected Ollama client error.") from exc
-            return _extract_text_from_sdk(response)
+            text = _extract_text_from_sdk(response)
+            # Tip: Qwen local builds may emit <think> traces; wire up hooks.qwen_strip_think:postprocess.
+            return run_postprocess(self.postprocess_fn, text)
 
         url = f"{self._base_url.rstrip('/')}/api/chat"
         payload = {
@@ -79,15 +96,13 @@ class OllamaAdapter:
         try:
             data = post_json(url, payload, timeout_s=timeout_s)
         except AdapterUnavailable as exc:
-            # Provide nicer message if the server returns structured error
             raise AdapterUnavailable(f"Ollama request failed: {exc}") from exc
-        except Exception as exc:  # pragma: no cover - propagate mapped errors
-            raise exc
 
         text = _extract_text_from_http(data)
         if not text:
             raise AdapterUnavailable("Ollama response did not include message content.")
-        return text
+        # Tip: Add hooks.qwen_strip_think:postprocess for Qwen models that return <think> blocks.
+        return run_postprocess(self.postprocess_fn, text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

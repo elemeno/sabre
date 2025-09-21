@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 from saber.config_loader import ModelCfg
@@ -18,6 +18,12 @@ from .base import (
     build_messages,
 )
 from .http_utils import ensure_requests, post_json
+from saber.utils.hooks import (
+    PostprocessFn,
+    PreprocessFn,
+    run_postprocess,
+    run_preprocess,
+)
 
 try:  # pragma: no cover - optional dependency
     from openai import OpenAI
@@ -36,6 +42,8 @@ class LMStudioAdapter:
     """Adapter for LM Studio running in OpenAI-compatible server mode."""
 
     model_cfg: ModelCfg
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
     name: str = "lmstudio"
 
     def __post_init__(self) -> None:
@@ -67,15 +75,24 @@ class LMStudioAdapter:
         runtime: Dict | None = None,
         timeout_s: float = 60.0,
     ) -> str:
-        messages = build_messages(
-            system=system, persona_system=persona_system, history=history
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
         )
+        messages = build_messages(system=system, persona_system=persona_system, history=history)
         payload = self._build_payload(messages=messages, runtime=runtime)
 
         if self._client is not None:
-            return self._send_via_openai_client(payload, timeout_s)
+            text = self._send_via_openai_client(payload, timeout_s)
+            # Tip: Pair local Qwen checkpoints with hooks.qwen_strip_think:postprocess to strip <think> blocks.
+            return run_postprocess(self.postprocess_fn, text)
 
-        return self._send_via_http(payload, timeout_s)
+        text = self._send_via_http(payload, timeout_s)
+        # Tip: Pair local Qwen checkpoints with hooks.qwen_strip_think:postprocess to strip <think> blocks.
+        return run_postprocess(self.postprocess_fn, text)
 
     # ------------------------------------------------------------------
     def _build_payload(

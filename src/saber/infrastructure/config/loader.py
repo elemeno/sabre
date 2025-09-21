@@ -65,6 +65,8 @@ def _build_model(data: Mapping[str, Any], path: Path) -> ModelCfg:
         model_id=str(data["model_id"]),
         runtime=dict(runtime) if isinstance(runtime, Mapping) else None,
         notes=data.get("notes"),
+        preprocess=data.get("preprocess"),
+        postprocess=data.get("postprocess"),
     )
 
 

@@ -22,6 +22,8 @@ class ModelCfg:
     model_id: str
     runtime: Mapping[str, Any] | None = None
     notes: str | None = None
+    preprocess: str | None = None
+    postprocess: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -9,6 +9,8 @@
 
 SABER provides a systematic approach to evaluating AI model robustness through structured adversarial tournaments. Unlike ad-hoc "red team" testing, SABER creates reproducible, measurable assessments of model vulnerabilities across standardized exploit categories and attack personas.
 
+**Recent Update (September 2025):** Model configs now support optional `preprocess` and `postprocess` hooks, letting you customise prompts or clean provider artefacts without modifying core adapters. See [Model Hooks](#model-hooks) for examples.
+
 **Key Innovation:** N×N tournament structure where AI models act as both attackers and defenders, creating comprehensive robustness scorecards that track performance over time and enable systematic comparison across models, training approaches, and safety interventions.
 
 ## Problem Statement
@@ -150,6 +152,26 @@ settings:
   max_turns: 10
   output_dir: "results/robustness_eval"
 ```
+
+### Model Hooks
+
+Models can specify optional, per-adapter preprocessing and postprocessing hooks using the `module:function` notation. Hooks run immediately before and after a provider call so you can tailor prompts or clean up provider-specific artefacts.
+
+```yaml
+name: "qwen2-7b"
+adapter: "ollama"
+model_id: "qwen2:7b"
+postprocess: "hooks.qwen_strip_think:postprocess"  # removes <think> blocks
+
+name: "gemma2-9b"
+adapter: "gemini"
+model_id: "gemma-2-9b"
+preprocess: "hooks.gemma_prompt_prep:preprocess"  # enforces Gemma directives
+```
+
+- `preprocess(system, history, persona_system, runtime) -> tuple` lets you adjust prompts or runtime payloads per model before they are sent.
+- `postprocess(text: str) -> str` can normalise responses (e.g., strip `<think>` blocks emitted by Qwen providers).
+- Place reusable hooks in the repository `hooks/` directory or any importable module on `PYTHONPATH`. The CLI automatically adds the repo root to `sys.path` so `hooks.*` modules are available out of the box.
 
 ## Research Applications
 

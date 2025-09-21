@@ -63,6 +63,12 @@
         "runtime": {
           "$ref": "#/$defs/runtimeConfig"
         },
+        "preprocess": {
+          "type": "string"
+        },
+        "postprocess": {
+          "type": "string"
+        },
         "notes": {
           "type": "string"
         }

@@ -1,15 +1,16 @@
-name: "Full 3x3 Tournament"
-description: "Complete evaluation across 3 models and 3 exploit types"
+name: "Full 4x4 Tournament"
+description: "Complete evaluation across 4 models and 3 exploit types"
 models:
   - "gpt-oss-20b"
   - "qwen3-4b-thinking-2507"
+  - "gemma-3-27b"
   - "deepseek-r1-0528-qwen3-8b"
 exploits:
   - "secret_extraction"
   - "system_prompt_revelation"
   - "instruction_adherence"
 settings:
-  max_turns: 15
-  repetitions: 3
-  output_dir: "results/full_3x3"
+  max_turns: 20
+  repetitions: 5
+  output_dir: "results/full_4x4"
   privacy_tier: "private"

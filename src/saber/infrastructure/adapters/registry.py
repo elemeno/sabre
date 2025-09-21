@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Callable, Dict, Type
 
 from saber.config_loader import ModelCfg
 
@@ -14,41 +13,16 @@ from .gemini_adapt import GeminiAdapter
 from .lmstudio_adapt import LMStudioAdapter
 from .ollama_adapt import OllamaAdapter
 from .openai_adapt import OpenAIAdapter
+from saber.utils.hooks import attach_model_hooks
 
 
-@dataclass
-class _StubAdapter:
-    """Placeholder adapter used until vendor-specific implementations exist."""
-
-    name: str
-    model_cfg: ModelCfg
-
-    def send(
-        self,
-        *,
-        system: str | None,
-        history: list[dict[str, str]],
-        persona_system: str | None = None,
-        runtime: dict | None = None,
-        timeout_s: float = 60.0,
-    ) -> str:  # pragma: no cover - defensive placeholder
-        raise AdapterUnavailable(f"Adapter '{self.name}' is not implemented.")
-
-
-def _make_stub(provider: str) -> Callable[[ModelCfg], ModelAdapter]:
-    def _factory(model_cfg: ModelCfg) -> ModelAdapter:
-        return _StubAdapter(name=provider, model_cfg=model_cfg)
-
-    return _factory
-
-
-REGISTRY: Dict[str, Callable[[ModelCfg], ModelAdapter]] = {
-    "openai": lambda cfg: OpenAIAdapter(cfg),
-    "anthropic": lambda cfg: AnthropicAdapter(cfg),
-    "gemini": lambda cfg: GeminiAdapter(cfg),
-    "ollama": lambda cfg: OllamaAdapter(cfg),
-    "lmstudio": lambda cfg: LMStudioAdapter(cfg),
-    "dummy": lambda cfg: DummyAdapter(),
+REGISTRY: Dict[str, Type[ModelAdapter]] = {
+    "openai": OpenAIAdapter,
+    "anthropic": AnthropicAdapter,
+    "gemini": GeminiAdapter,
+    "ollama": OllamaAdapter,
+    "lmstudio": LMStudioAdapter,
+    "dummy": DummyAdapter,
 }
 
 
@@ -57,10 +31,19 @@ def create_adapter(adapter_id: str, model_cfg: ModelCfg) -> ModelAdapter:
 
     key = adapter_id.lower()
     try:
-        factory = REGISTRY[key]
+        adapter_cls = REGISTRY[key]
     except KeyError as exc:  # pragma: no cover - simple error path
         raise AdapterUnavailable(f"Unknown adapter id '{adapter_id}'.") from exc
-    return factory(model_cfg)
+
+    preprocess_fn, postprocess_fn = attach_model_hooks(model_cfg)
+
+    if adapter_cls is DummyAdapter:
+        return adapter_cls(preprocess_fn=preprocess_fn, postprocess_fn=postprocess_fn)
+    return adapter_cls(
+        model_cfg,
+        preprocess_fn=preprocess_fn,
+        postprocess_fn=postprocess_fn,
+    )
 
 
 __all__ = ["REGISTRY", "create_adapter"]

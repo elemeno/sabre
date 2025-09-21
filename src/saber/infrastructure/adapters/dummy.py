@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 from .base import Message, ModelAdapter, build_messages
+from saber.utils.hooks import PreprocessFn, PostprocessFn, run_postprocess, run_preprocess
 
 
 @dataclass(frozen=True)
@@ -12,6 +14,8 @@ class DummyAdapter:
     """Adapter that simply echoes the prompt with a prefix."""
 
     name: str = "dummy"
+    preprocess_fn: PreprocessFn | None = field(default=None, repr=False)
+    postprocess_fn: PostprocessFn | None = field(default=None, repr=False)
 
     def send(
         self,
@@ -24,10 +28,18 @@ class DummyAdapter:
     ) -> str:
         """Return a simulated response using the last user input."""
 
+        system, history, persona_system, runtime = run_preprocess(
+            self.preprocess_fn,
+            system=system,
+            history=history,
+            persona_system=persona_system,
+            runtime=runtime,
+        )
         messages = build_messages(system=system, persona_system=persona_system, history=history)
         last_user = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
         content = last_user["content"] if last_user else "Hello from dummy adapter."
-        return f"[{self.name}] {content}"
+        output = f"[{self.name}] {content}"
+        return run_postprocess(self.postprocess_fn, output)
 
     # Backwards compatibility for earlier tests/usage.
     def invoke(self, prompt: str) -> str:
