@@ -1,4 +1,4 @@
-"""General utility helpers for Saber."""
+"""General utility helpers for Sabre."""
 
 from __future__ import annotations
 

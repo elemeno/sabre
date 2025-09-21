@@ -1,4 +1,4 @@
-"""Saber package for adversarial evaluation tooling."""
+"""Sabre package for adversarial evaluation tooling."""
 
 from __future__ import annotations
 

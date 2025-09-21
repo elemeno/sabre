@@ -1,4 +1,4 @@
-"""Command line interface for Saber."""
+"""Command line interface for Sabre."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from sabre.adapters import AdapterUnavailable
 from sabre.tournament import MatchSpec, TournamentController
 from sabre.utils.paths import resolve_timestamped_output_dir
 
-app = typer.Typer(help="CLI for Saber configuration management and match simulation.")
+app = typer.Typer(help="CLI for Sabre configuration management and match simulation.")
 console = Console()
 
 
@@ -61,7 +61,7 @@ def validate(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Directory containing Saber configuration YAML files.",
+        help="Directory containing Sabre configuration YAML files.",
     )
 ) -> None:
     """Validate configuration files."""
@@ -80,7 +80,7 @@ def show(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Directory containing Saber configuration YAML files.",
+        help="Directory containing Sabre configuration YAML files.",
     ),
 ) -> None:
     """Display details about a configuration entity."""
@@ -142,7 +142,7 @@ def run_match(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Directory containing Saber configuration YAML files.",
+        help="Directory containing Sabre configuration YAML files.",
     ),
 ) -> None:
     """Run a deterministic dummy match."""
@@ -219,7 +219,7 @@ def run_tournament(
         file_okay=False,
         dir_okay=True,
         readable=True,
-        help="Directory containing Saber configuration YAML files.",
+        help="Directory containing Sabre configuration YAML files.",
     ),
     output_dir: Path | None = typer.Option(
         None,

@@ -1,13 +1,13 @@
-# SABER: Systematic Adversarial Benchmark for Evaluation and Robustness
+# SABRE: Systematic Adversarial Benchmark for Evaluation and Robustness
 
 **A framework for systematic adversarial evaluation of AI models through structured tournaments**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Research Preview](https://img.shields.io/badge/Status-Research%20Preview-orange)](https://github.com/username/saber)
+[![Status: Research Preview](https://img.shields.io/badge/Status-Research%20Preview-orange)](https://github.com/username/sabre)
 
 ## Overview
 
-SABER provides a systematic approach to evaluating AI model robustness through structured adversarial tournaments. Unlike ad-hoc "red team" testing, SABER creates reproducible, measurable assessments of model vulnerabilities across standardized exploit categories and attack personas.
+SABRE provides a systematic approach to evaluating AI model robustness through structured adversarial tournaments. Unlike ad-hoc "red team" testing, SABRE creates reproducible, measurable assessments of model vulnerabilities across standardized exploit categories and attack personas.
 
 **Recent Update (September 2025):** Model configs now support optional `preprocess` and `postprocess` hooks, letting you customise prompts or clean provider artefacts without modifying core adapters. See [Model Hooks](#model-hooks) for examples.
 
@@ -40,7 +40,7 @@ Current AI model evaluation suffers from several critical gaps:
 
 ## Solution: Systematic Adversarial Tournaments
 
-SABER addresses these challenges through structured competition between AI models:
+SABRE addresses these challenges through structured competition between AI models:
 
 ### **Tournament Structure**
 
@@ -69,7 +69,7 @@ SABER addresses these challenges through structured competition between AI model
 ### **Modular Design**
 
 ```
-SABER Framework
+SABRE Framework
 ├── Tournament Controller    # Orchestrates matches and manages state
 ├── Model Adapters          # Interfaces with LLMStudio, Ollama, APIs
 ├── Exploit Engine         # Manages attack/defense scenarios
@@ -120,19 +120,19 @@ SABER Framework
 ### **Quick Start**
 
 ```bash
-# Install SABER
-pip install saber-framework
+# Install SABRE
+pip install sabre-framework
 
 # Run basic tournament
-saber run --tournament config/tournaments/mvp_basic.yaml
+sabre run --tournament config/tournaments/mvp_basic.yaml
 
 # Analyze results
-saber analyze results/mvp_basic/ --format summary
+sabre analyze results/mvp_basic/ --format summary
 ```
 
 ### **Configuration**
 
-SABER uses modular YAML configuration files:
+SABRE uses modular YAML configuration files:
 
 ```
 config/
@@ -198,7 +198,7 @@ preprocess: "hooks.gemma_prompt_prep:preprocess"  # enforces Gemma directives
 
 ## Contributing
 
-SABER is designed for collaborative development:
+SABRE is designed for collaborative development:
 
 ### **Research Partnerships**
 
@@ -245,12 +245,12 @@ SABER is designed for collaborative development:
 
 ---
 
-_SABER is developed as part of research into systematic AI safety evaluation. The project prioritizes responsible disclosure, academic collaboration, and defensive security applications._
+_SABRE is developed as part of research into systematic AI safety evaluation. The project prioritizes responsible disclosure, academic collaboration, and defensive security applications._
 
 
 ## Adapters
 
-Saber supports multiple model providers through adapters. Configure the relevant environment variables before invoking provider-backed commands:
+Sabre supports multiple model providers through adapters. Configure the relevant environment variables before invoking provider-backed commands:
 
 | Adapter | Environment Variables |
 |---------|-----------------------|
@@ -264,27 +264,27 @@ Examples:
 
 ```bash
 # OpenAI
-saber run-match --adapter openai --attacker openai-model --defender openai-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/openai
+sabre run-match --adapter openai --attacker openai-model --defender openai-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/openai
 
 # Anthropic
-saber run-match --adapter anthropic --attacker claude --defender claude   --exploit secret_extraction --persona prompt_injector --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/anthropic
+sabre run-match --adapter anthropic --attacker claude --defender claude   --exploit secret_extraction --persona prompt_injector --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/anthropic
 
 # Gemini
-saber run-match --adapter gemini --attacker gemini-model --defender gemini-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/gemini
+sabre run-match --adapter gemini --attacker gemini-model --defender gemini-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/gemini
 
 # Ollama (local)
-saber run-match --adapter ollama --attacker llama2-7b --defender llama2-7b   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/ollama
+sabre run-match --adapter ollama --attacker llama2-7b --defender llama2-7b   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/ollama
 
 # LM Studio (OpenAI-compatible server)
-saber run-match --adapter lmstudio --attacker local-model --defender local-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/lmstudio
+sabre run-match --adapter lmstudio --attacker local-model --defender local-model   --exploit secret_extraction --persona direct_questioner --secret-index 0 --max-turns 4   --config-dir config/ --output-dir results/lmstudio
 ```
 
-All adapters honour runtime parameters such as `temperature`, `top_p`, and token limits. Saber automatically retries on rate limits and transient server errors using exponential backoff. For reproducible benchmarking, prefer deterministic settings (e.g. `temperature=0`, `top_p=1.0`).
+All adapters honour runtime parameters such as `temperature`, `top_p`, and token limits. Sabre automatically retries on rate limits and transient server errors using exponential backoff. For reproducible benchmarking, prefer deterministic settings (e.g. `temperature=0`, `top_p=1.0`).
 
 ### Adapter Lifecycle
 1. **Initialise:** `ApplicationContext` resolves provider ids and constructs adapters lazily for each match.
 2. **Execute:** `MatchService` wraps `ModelAdapter.send` calls with `retry_send`, capturing retries and transcripts.
 3. **Persist:** Match payloads are written to `matches/` with adapter metadata (provider, model id, runtime options).
-4. **Extend:** Implement `ModelAdapter.send`, reuse `http_utils.post_json`, and register the factory in `saber.infrastructure.adapters.registry` when adding new providers.
+4. **Extend:** Implement `ModelAdapter.send`, reuse `http_utils.post_json`, and register the factory in `sabre.infrastructure.adapters.registry` when adding new providers.
 
-If a provider returns an empty string after postprocessing, Saber automatically retries once more. Persistent empty responses mark the turn as `empty_response` in the match payload while the tournament continues.
+If a provider returns an empty string after postprocessing, Sabre automatically retries once more. Persistent empty responses mark the turn as `empty_response` in the match payload while the tournament continues.

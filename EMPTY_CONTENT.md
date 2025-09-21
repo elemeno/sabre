@@ -14,12 +14,12 @@
 
 2. **Normalise Empty Content Signalling**
 
-   - Introduce a shared helper (e.g., `ensure_non_empty_reply(text: str) -> str`) inside `saber.utils.hooks` or a new module that raises a dedicated exception like `AdapterEmptyResponse` when `text.strip()` is falsy.
+   - Introduce a shared helper (e.g., `ensure_non_empty_reply(text: str) -> str`) inside `sabre.utils.hooks` or a new module that raises a dedicated exception like `AdapterEmptyResponse` when `text.strip()` is falsy.
    - Call this helper immediately after `run_postprocess` in each adapter to guarantee consistent handling regardless of provider quirks.
 
 3. **Retry Hook Integration**
 
-   - Update the retry mechanism (`retry_send` in `saber.application.match_service`) to treat `AdapterEmptyResponse` as a retryable error, mirroring current handling for `AdapterUnavailable` and `AdapterRateLimit`.
+   - Update the retry mechanism (`retry_send` in `sabre.application.match_service`) to treat `AdapterEmptyResponse` as a retryable error, mirroring current handling for `AdapterUnavailable` and `AdapterRateLimit`.
    - Configure it to attempt one additional retry (total of two attempts). Make the retry count configurable via tournament runtime settings if we need more flexibility later.
 
 4. **Terminal Failure Handling**

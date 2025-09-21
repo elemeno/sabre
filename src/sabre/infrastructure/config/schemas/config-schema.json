@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://saber.dev/schemas/config-schema.json",
-  "title": "Saber Configuration Schema",
+  "$id": "https://sabre.dev/schemas/config-schema.json",
+  "title": "Sabre Configuration Schema",
   "$defs": {
     "runtimeConfig": {
       "type": "object",

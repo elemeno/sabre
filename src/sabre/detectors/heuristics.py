@@ -1,4 +1,4 @@
-"""Heuristic checks and detection primitives for Saber."""
+"""Heuristic checks and detection primitives for Sabre."""
 
 from __future__ import annotations
 

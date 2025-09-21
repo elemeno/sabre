@@ -1,1 +1,1 @@
-"""Default hook modules for SABER adapters."""
+"""Default hook modules for SABRE adapters."""

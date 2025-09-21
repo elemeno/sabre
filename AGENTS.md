@@ -1,16 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/saber/`: core Python package (adapters, CLI, tournament controller, utilities).
+ - `src/sabre/`: core Python package (adapters, CLI, tournament controller, utilities).
 - `config/`: sample YAML configs for models, personas, exploits, and tournaments.
 - `tests/`: pytest suite, including adapter smoke tests and CLI coverage.
 - `README.md`: combined overview, usage, and adapter documentation.
 
 ## Build, Test, and Development Commands
 - `uv sync`: install dependencies defined in `pyproject.toml`.
-- `uv run python -m saber.cli --help`: display CLI commands and adapter options.
+- `uv run python -m sabre.cli --help`: display CLI commands and adapter options.
 - `uv run python -m pytest -q`: execute the full automated test suite.
-- `uv run python -m saber.cli run --tournament config/tournaments/mvp_basic.yaml`: sample end-to-end tournament.
+- `uv run python -m sabre.cli run --tournament config/tournaments/mvp_basic.yaml`: sample end-to-end tournament.
 
 ## Coding Style & Naming Conventions
 - Python 3.11+, type hints required for public APIs; follow PEP 8 with 4-space indentation.

@@ -1,4 +1,4 @@
-"""CLI command tests for saber."""
+"""CLI command tests for sabre."""
 
 from __future__ import annotations
 
