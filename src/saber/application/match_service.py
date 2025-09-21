@@ -10,6 +10,7 @@ from typing import Any, Callable
 from rich.console import Console
 
 from saber.adapters import DummyAdapter, ModelAdapter, create_adapter
+from saber.adapters.base import AdapterEmptyResponse
 from saber.adapters.util import retry_send
 from saber.detectors import run_detection
 from saber.domain.config import (
@@ -89,15 +90,26 @@ class MatchService:
 
         # attacker_message = context.persona_cfg.opening_message
         # Get the attacked to create the opening message
-        attacker_message = self._invoke_attacker(
-            attacker_agent,
-            persona_system=context.persona_cfg.system_prompt,
-            history=[
-                {"role": "defender", "content": context.persona_cfg.opening_message}
-            ],
-            fallback_last_message="",
-            persona_opening=context.persona_cfg.opening_message,
-        )
+        try:
+            attacker_message = self._invoke_attacker(
+                attacker_agent,
+                persona_system=context.persona_cfg.system_prompt,
+                history=[
+                    {"role": "defender", "content": context.persona_cfg.opening_message}
+                ],
+                fallback_last_message="",
+                persona_opening=context.persona_cfg.opening_message,
+            )
+        except AdapterEmptyResponse as exc:
+            return self._handle_empty_response(
+                context=context,
+                transcript=transcript,
+                start_time=start_time,
+                actor="attacker_opening",
+                exc=exc,
+                attacker_agent=attacker_agent,
+                defender_agent=defender_agent,
+            )
 
         self.console.log(
             f"[bold magenta]Attacker Prompt: [/bold magenta] {context.persona_cfg.opening_message}"
@@ -121,12 +133,23 @@ class MatchService:
         while turns < context.max_turns:
             self.console.log(f"[bold blue]Turn {turns}[/bold blue]")
             # self.console.log(f"Conversation so far: \n{transcript}")
-            defender_message = self._invoke_defender(
-                defender_agent,
-                defender_prompt=context.defender_prompt,
-                history=transcript,
-                secret=context.secret,
-            )
+            try:
+                defender_message = self._invoke_defender(
+                    defender_agent,
+                    defender_prompt=context.defender_prompt,
+                    history=transcript,
+                    secret=context.secret,
+                )
+            except AdapterEmptyResponse as exc:
+                return self._handle_empty_response(
+                    context=context,
+                    transcript=transcript,
+                    start_time=start_time,
+                    actor="defender",
+                    exc=exc,
+                    attacker_agent=attacker_agent,
+                    defender_agent=defender_agent,
+                )
             self.console.log(
                 f"[bold green]Defender Prompt: [/bold green] {transcript[-1]['content']}"
             )
@@ -163,13 +186,24 @@ class MatchService:
                 self.console.log("[bold_red]Turn Limit[/bold_red]")
                 break
 
-            attacker_message = self._invoke_attacker(
-                attacker_agent,
-                persona_system=context.persona_cfg.system_prompt,
-                history=transcript,
-                fallback_last_message=defender_message,
-                persona_opening=context.persona_cfg.opening_message,
-            )
+            try:
+                attacker_message = self._invoke_attacker(
+                    attacker_agent,
+                    persona_system=context.persona_cfg.system_prompt,
+                    history=transcript,
+                    fallback_last_message=defender_message,
+                    persona_opening=context.persona_cfg.opening_message,
+                )
+            except AdapterEmptyResponse as exc:
+                return self._handle_empty_response(
+                    context=context,
+                    transcript=transcript,
+                    start_time=start_time,
+                    actor="attacker",
+                    exc=exc,
+                    attacker_agent=attacker_agent,
+                    defender_agent=defender_agent,
+                )
             self.console.log(
                 f"[bold magenta]Attacker Prompt: [/bold magenta] {transcript[-1]['content']}"
             )
@@ -180,6 +214,66 @@ class MatchService:
             turns += 1
             # conversation.append({"role": "user", "content": attacker_message})
 
+        return self._finalize_result(
+            context=context,
+            transcript=transcript,
+            success=success,
+            reason=reason,
+            detection_confidence=detection_confidence,
+            detection_details=detection_details,
+            turns_to_success=turns_to_success,
+            start_time=start_time,
+            attacker_agent=attacker_agent,
+            defender_agent=defender_agent,
+        )
+
+    def _handle_empty_response(
+        self,
+        *,
+        context: MatchContext,
+        transcript: list[dict[str, str]],
+        start_time: float,
+        actor: str,
+        exc: AdapterEmptyResponse,
+        attacker_agent: ModelAdapter,
+        defender_agent: ModelAdapter,
+    ) -> dict[str, Any]:
+        self.console.print(
+            f"[red]Adapter empty response[/red] from {actor}: {exc}. "
+            "Marking match as failed and continuing."
+        )
+        details = {
+            "error": "empty_response",
+            "actor": actor,
+            "message": str(exc),
+        }
+        return self._finalize_result(
+            context=context,
+            transcript=transcript,
+            success=False,
+            reason="empty_response",
+            detection_confidence=0.0,
+            detection_details=details,
+            turns_to_success=None,
+            start_time=start_time,
+            attacker_agent=attacker_agent,
+            defender_agent=defender_agent,
+        )
+
+    def _finalize_result(
+        self,
+        *,
+        context: MatchContext,
+        transcript: list[dict[str, str]],
+        success: bool,
+        reason: str,
+        detection_confidence: float,
+        detection_details: dict[str, Any] | None,
+        turns_to_success: int | None,
+        start_time: float,
+        attacker_agent: ModelAdapter,
+        defender_agent: ModelAdapter,
+    ) -> dict[str, Any]:
         elapsed = time.monotonic() - start_time
         context.output_dir.mkdir(parents=True, exist_ok=True)
         filename = _match_filename(

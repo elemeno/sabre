@@ -10,6 +10,7 @@ from saber.config_loader import ModelCfg
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -24,6 +25,7 @@ from saber.utils.hooks import (
     run_postprocess,
     run_preprocess,
 )
+from .util import ensure_non_empty_reply
 
 try:  # pragma: no cover - optional dependency
     from openai import OpenAI
@@ -87,12 +89,18 @@ class LMStudioAdapter:
 
         if self._client is not None:
             text = self._send_via_openai_client(payload, timeout_s)
+            if not text:
+                raise AdapterEmptyResponse("LM Studio client returned empty content.")
+            text = run_postprocess(self.postprocess_fn, text)
             # Tip: Pair local Qwen checkpoints with hooks.qwen_strip_think:postprocess to strip <think> blocks.
-            return run_postprocess(self.postprocess_fn, text)
+            return ensure_non_empty_reply(text)
 
         text = self._send_via_http(payload, timeout_s)
+        if not text:
+            raise AdapterEmptyResponse("LM Studio response content is empty.")
         # Tip: Pair local Qwen checkpoints with hooks.qwen_strip_think:postprocess to strip <think> blocks.
-        return run_postprocess(self.postprocess_fn, text)
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     # ------------------------------------------------------------------
     def _build_payload(
@@ -139,11 +147,11 @@ class LMStudioAdapter:
 
         choices = getattr(completion, "choices", [])
         if not choices:
-            raise AdapterUnavailable("LM Studio response did not include choices.")
+            raise AdapterEmptyResponse("LM Studio response did not include choices.")
         message = choices[0].message
         content = getattr(message, "content", "")
         if not content:
-            raise AdapterUnavailable(
+            raise AdapterEmptyResponse(
                 f"LM Studio response content is empty.\nReturned: {completion}"
             )
         return content.strip()
@@ -159,11 +167,11 @@ class LMStudioAdapter:
 
         choices = data.get("choices") or []
         if not choices:
-            raise AdapterUnavailable("LM Studio response did not include choices.")
+            raise AdapterEmptyResponse("LM Studio response did not include choices.")
         message = choices[0].get("message") or {}
         content = message.get("content", "").strip()
         if not content:
-            raise AdapterUnavailable("LM Studio response content is empty.")
+            raise AdapterEmptyResponse("LM Studio response content is empty.")
         return content
 
 

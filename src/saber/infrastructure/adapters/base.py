@@ -28,6 +28,10 @@ class AdapterValidationError(Exception):
     """Raised when the request payload is invalid."""
 
 
+class AdapterEmptyResponse(AdapterUnavailable):
+    """Raised when a provider returns an empty or blank response."""
+
+
 @runtime_checkable
 class ModelAdapter(Protocol):
     """Minimal interface for chat model adapters."""
@@ -87,6 +91,7 @@ __all__ = [
     "AdapterRateLimit",
     "AdapterServerError",
     "AdapterValidationError",
+    "AdapterEmptyResponse",
     "make_message",
     "merge_system_prompts",
     "build_messages",

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from .base import Message, ModelAdapter, build_messages
+from .util import ensure_non_empty_reply
 from saber.utils.hooks import PreprocessFn, PostprocessFn, run_postprocess, run_preprocess
 
 
@@ -39,7 +40,8 @@ class DummyAdapter:
         last_user = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
         content = last_user["content"] if last_user else "Hello from dummy adapter."
         output = f"[{self.name}] {content}"
-        return run_postprocess(self.postprocess_fn, output)
+        text = run_postprocess(self.postprocess_fn, output)
+        return ensure_non_empty_reply(text)
 
     # Backwards compatibility for earlier tests/usage.
     def invoke(self, prompt: str) -> str:

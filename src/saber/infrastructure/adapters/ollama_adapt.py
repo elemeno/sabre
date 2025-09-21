@@ -10,6 +10,7 @@ from saber.config_loader import ModelCfg
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -24,6 +25,7 @@ from saber.utils.hooks import (
     run_postprocess,
     run_preprocess,
 )
+from .util import ensure_non_empty_reply
 
 try:  # pragma: no cover - optional dependency
     import ollama  # type: ignore
@@ -83,8 +85,11 @@ class OllamaAdapter:
             except Exception as exc:  # pragma: no cover - defensive
                 raise AdapterUnavailable("Unexpected Ollama client error.") from exc
             text = _extract_text_from_sdk(response)
+            if not text:
+                raise AdapterEmptyResponse("Ollama SDK response did not include message content.")
+            text = run_postprocess(self.postprocess_fn, text)
             # Tip: Qwen local builds may emit <think> traces; wire up hooks.qwen_strip_think:postprocess.
-            return run_postprocess(self.postprocess_fn, text)
+            return ensure_non_empty_reply(text)
 
         url = f"{self._base_url.rstrip('/')}/api/chat"
         payload = {
@@ -100,9 +105,10 @@ class OllamaAdapter:
 
         text = _extract_text_from_http(data)
         if not text:
-            raise AdapterUnavailable("Ollama response did not include message content.")
+            raise AdapterEmptyResponse("Ollama response did not include message content.")
         # Tip: Add hooks.qwen_strip_think:postprocess for Qwen models that return <think> blocks.
-        return run_postprocess(self.postprocess_fn, text)
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

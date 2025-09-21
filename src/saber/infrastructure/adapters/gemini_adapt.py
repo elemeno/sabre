@@ -10,6 +10,7 @@ from saber.config_loader import ModelCfg
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -18,6 +19,7 @@ from .base import (
     build_messages,
     merge_system_prompts,
 )
+from .util import ensure_non_empty_reply
 from saber.utils.hooks import (
     PostprocessFn,
     PreprocessFn,
@@ -112,8 +114,9 @@ class GeminiAdapter:
 
         text = _extract_text_from_sdk(response)
         if not text:
-            raise AdapterUnavailable("Gemini API returned empty content.")
-        return run_postprocess(self.postprocess_fn, text)
+            raise AdapterEmptyResponse("Gemini API returned empty content.")
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     def _send_via_http(
         self,
@@ -143,8 +146,9 @@ class GeminiAdapter:
 
         text = _extract_text_from_http(data)
         if not text:
-            raise AdapterUnavailable("Gemini API returned empty content.")
-        return run_postprocess(self.postprocess_fn, text)
+            raise AdapterEmptyResponse("Gemini API returned empty content.")
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

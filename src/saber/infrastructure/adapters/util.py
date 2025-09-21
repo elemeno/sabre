@@ -10,6 +10,7 @@ from rich.console import Console
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -41,6 +42,10 @@ def retry_send(
             raise
         except AdapterValidationError:
             raise
+        except AdapterEmptyResponse as exc:
+            if attempt >= max_tries:
+                raise
+            _log_retry(console, attempt, max_tries, "empty response", exc)
         except AdapterRateLimit as exc:
             if attempt >= max_tries:
                 raise
@@ -71,4 +76,12 @@ def _log_retry(console: Console, attempt: int, max_tries: int, reason: str, exc:
     )
 
 
-__all__ = ["retry_send"]
+def ensure_non_empty_reply(text: str) -> str:
+    """Ensure *text* contains non-whitespace content, otherwise raise."""
+
+    if text is None or not text.strip():
+        raise AdapterEmptyResponse("Adapter returned empty response content.")
+    return text
+
+
+__all__ = ["retry_send", "ensure_non_empty_reply"]

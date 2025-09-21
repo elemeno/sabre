@@ -18,6 +18,7 @@ from saber.config_loader import ModelCfg
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -26,6 +27,7 @@ from .base import (
     build_messages,
     merge_system_prompts,
 )
+from .util import ensure_non_empty_reply
 from saber.utils.hooks import (
     PostprocessFn,
     PreprocessFn,
@@ -109,8 +111,9 @@ class AnthropicAdapter:
 
         text = _extract_text(response)
         if not text:
-            raise AdapterUnavailable("Anthropic API returned empty response content.")
-        return run_postprocess(self.postprocess_fn, text)
+            raise AdapterEmptyResponse("Anthropic API returned empty response content.")
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     # ------------------------------------------------------------------
     def _runtime_params(self, runtime: Dict | None) -> Dict[str, object]:

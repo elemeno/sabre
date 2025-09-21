@@ -26,6 +26,7 @@ from saber.config_loader import ModelCfg
 
 from .base import (
     AdapterAuthError,
+    AdapterEmptyResponse,
     AdapterRateLimit,
     AdapterServerError,
     AdapterUnavailable,
@@ -34,6 +35,7 @@ from .base import (
     ModelAdapter,
     build_messages,
 )
+from .util import ensure_non_empty_reply
 from saber.utils.hooks import (
     PostprocessFn,
     PreprocessFn,
@@ -109,7 +111,8 @@ class OpenAIAdapter:
             raise
         except Exception as exc:  # pragma: no cover - fallback
             raise AdapterUnavailable("Unexpected error while calling OpenAI Responses API.") from exc
-        return run_postprocess(self.postprocess_fn, text)
+        text = run_postprocess(self.postprocess_fn, text)
+        return ensure_non_empty_reply(text)
 
     # ------------------------------------------------------------------
     def _call_responses(
@@ -192,11 +195,11 @@ class OpenAIAdapter:
 
         choices = getattr(completion, "choices", [])
         if not choices:
-            raise AdapterUnavailable("OpenAI chat completion returned no choices.")
+            raise AdapterEmptyResponse("OpenAI chat completion returned no choices.")
         message = choices[0].message
         content = getattr(message, "content", None)
         if not content:
-            raise AdapterUnavailable("OpenAI chat completion returned empty content.")
+            raise AdapterEmptyResponse("OpenAI chat completion returned empty content.")
         return content.strip()
 
     # ------------------------------------------------------------------
