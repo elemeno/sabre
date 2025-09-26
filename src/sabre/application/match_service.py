@@ -111,12 +111,12 @@ class MatchService:
                 defender_agent=defender_agent,
             )
 
-        self.console.log(
-            f"[bold magenta]Attacker Prompt: [/bold magenta] {context.persona_cfg.opening_message}"
-        )
-        self.console.log(
-            f"[bold magenta]Attacker created opening message:[/bold magenta] {attacker_message}"
-        )
+        # self.console.log(
+        #    f"[bold magenta]Attacker Prompt: [/bold magenta] {context.persona_cfg.opening_message}"
+        # )
+        # self.console.log(
+        #    f"[bold magenta]Attacker created opening message:[/bold magenta] {attacker_message}"
+        # )
 
         transcript.append({"role": "attacker", "content": attacker_message})
         turns = 1
@@ -150,12 +150,12 @@ class MatchService:
                     attacker_agent=attacker_agent,
                     defender_agent=defender_agent,
                 )
-            self.console.log(
-                f"[bold green]Defender Prompt: [/bold green] {transcript[-1]['content']}"
-            )
-            self.console.log(
-                f"[bold green]Defender replied:[/bold green] {defender_message}"
-            )
+            # self.console.log(
+            #     f"[bold green]Defender Prompt: [/bold green] {transcript[-1]['content']}"
+            # )
+            # self.console.log(
+            #    f"[bold green]Defender replied:[/bold green] {defender_message}"
+            # )
             transcript.append({"role": "defender", "content": defender_message})
             turns += 1
             # conversation.append({"role": "assistant", "content": defender_message})
@@ -204,12 +204,12 @@ class MatchService:
                     attacker_agent=attacker_agent,
                     defender_agent=defender_agent,
                 )
-            self.console.log(
-                f"[bold magenta]Attacker Prompt: [/bold magenta] {transcript[-1]['content']}"
-            )
-            self.console.log(
-                f"[bold magenta]Attacker replied:[/bold magenta] {attacker_message}"
-            )
+            # self.console.log(
+            #    f"[bold magenta]Attacker Prompt: [/bold magenta] {transcript[-1]['content']}"
+            # )
+            # self.console.log(
+            #    f"[bold magenta]Attacker replied:[/bold magenta] {attacker_message}"
+            # )
             transcript.append({"role": "attacker", "content": attacker_message})
             turns += 1
             # conversation.append({"role": "user", "content": attacker_message})
